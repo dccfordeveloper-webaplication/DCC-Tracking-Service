@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DCC Center - Service & Ordering System</title>
+    <title>DCC Store - Service & Ordering System</title>
+    <!-- Favicon DCSC.png -->
+    <link rel="icon" type="image/png" href="DCSC.png">
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Font Plus Jakarta Sans -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Chart.js for Analytics -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <script>
         tailwind.config = {
             theme: {
@@ -37,14 +43,22 @@
         body {
             background-color: #00459c;
             font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
         }
-        .main-card-shadow {
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        
+        .fade-in {
+            animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
         .step-active {
-            box-shadow: 0 0 15px rgba(255, 107, 0, 0.6);
+            box-shadow: 0 0 20px rgba(255, 107, 0, 0.7);
         }
-        /* Custom scrollbar */
+
+        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -53,35 +67,39 @@
             background: #f1f5f9;
         }
         ::-webkit-scrollbar-thumb {
-            background: #94a3b8;
-            border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
+            background: #0058c4;
+            border-radius: 4px;
         }
     </style>
 </head>
 <body class="text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-dcc-accent selection:text-white">
 
-    <!-- Toast Notification Container -->
+    <!-- Notification Toast Bar -->
     <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
 
-    <!-- MAIN APP CONTAINER -->
-    <div id="app" class="flex-grow flex flex-col min-h-screen">
-        <!-- Content dynamic injection point -->
-    </div>
+    <!-- MAIN APP WRAPPER -->
+    <div id="app" class="flex-grow flex flex-col min-h-screen fade-in"></div>
 
-    <!-- MODAL DIALOG CONTAINER -->
-    <div id="modalOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-40 hidden flex items-center justify-center p-4">
+    <!-- GLOBAL MODAL OVERLAY -->
+    <div id="modalOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-40 hidden flex items-center justify-center p-4 transition-opacity duration-300 opacity-0">
         <div id="modalContainer" class="bg-white rounded-[28px] shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 opacity-0">
-            <!-- Dynamic Modal Content -->
+            <!-- Modal Content Injected Here -->
         </div>
     </div>
 
     <script>
         // ==========================================
-        // INITIAL STATE & SEED DATA STORAGE
+        // KONFIGURASI SUPABASE (TERHUBUNG)
         // ==========================================
+        const SUPABASE_URL = 'https://idaviqvdqnlckjutctgw.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkYXZpcXZkcW5sY2tqdXRjdGd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMDE2ODUsImV4cCI6MjEwODc3NzY4NX0.1q3DgLIlRilPNE5qSZUWXjqKL6ITw7Pi27WNYo9vdgM';
+        
+        let supabase = null;
+        if (SUPABASE_URL) {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        // Default local fallback state
         const DEFAULT_ORDERS = [
             {
                 id: 'ORD-7821',
@@ -90,28 +108,13 @@
                 room: 'Lab Komputer 2 / Gedung B',
                 orderType: 'PC Rendering High-End',
                 estimatedPrice: 18500000,
-                progress: 2, // 0: Rancangan, 1: Anggaran, 2: Pemesanan Ritel, 3: Pengiriman, 4: Selesai
+                progress: 2,
                 excelData: [
                     { component: 'Processor', spec: 'Intel Core i7-13700K', qty: 1, price: 6200000 },
                     { component: 'Motherboard', spec: 'ASUS ROG Strix Z790-F', qty: 1, price: 4800000 },
                     { component: 'RAM', spec: 'Corsair Vengeance DDR5 32GB (2x16GB)', qty: 1, price: 2100000 },
                     { component: 'VGA', spec: 'NVIDIA RTX 4070 12GB', qty: 1, price: 9500000 },
                     { component: 'Storage', spec: 'SSD NVMe Samsung 980 Pro 1TB', qty: 1, price: 1600000 }
-                ]
-            },
-            {
-                id: 'ORD-3094',
-                date: '2026-10-27',
-                customerName: 'Siti Rahmawati',
-                room: 'Ruang Dosen 104',
-                orderType: 'Set PC Admin Office + Monitor 24"',
-                estimatedPrice: 7200000,
-                progress: 0,
-                excelData: [
-                    { component: 'Processor', spec: 'Intel Core i3-12100', qty: 1, price: 1600000 },
-                    { component: 'RAM', spec: 'Kingston 8GB DDR4', qty: 1, price: 350000 },
-                    { component: 'Storage', spec: 'SSD 512GB NVMe', qty: 1, price: 550000 },
-                    { component: 'Monitor', spec: 'LG 24 Inch IPS FHD', qty: 1, price: 1500000 }
                 ]
             }
         ];
@@ -124,48 +127,20 @@
                 room: 'Keuangan / Lt. 2',
                 notes: 'Mohon dibantu instal ulang software akuntansi jika selesai.',
                 estimatedPrice: 350000,
-                progress: 1, // 0: Pengecekan, 1: Penanganan, 2: Lempar Teknisi Luar, 3: Selesai
+                progress: 1,
                 items: [
-                    { name: 'Printer Epson L3110', issue: 'Hasil cetak garis-garis & paper jam' },
-                    { name: 'PC Desktop Server', issue: 'Sering blue screen saat mati lampu' }
-                ]
-            },
-            {
-                id: 'SVC-8831',
-                date: '2026-10-28',
-                customerName: 'Dr. Hendra',
-                room: 'Fakultas Teknik',
-                notes: 'Butuh cepat untuk persentase ujian besok.',
-                estimatedPrice: 150000,
-                progress: 3,
-                items: [
-                    { name: 'Laptop Asus ROG Strix', issue: 'Overheating & kipas berbunyi bising' }
+                    { name: 'Printer Epson L3110', issue: 'Hasil cetak garis-garis & paper jam' }
                 ]
             }
         ];
 
-        function getStorage(key, defaultVal) {
-            const data = localStorage.getItem('dcc_' + key);
-            return data ? JSON.parse(data) : defaultVal;
-        }
-
-        function setStorage(key, val) {
-            localStorage.setItem('dcc_' + key, JSON.stringify(val));
-        }
-
         let appData = {
-            currentRole: 'customer', // 'customer' or 'admin'
-            activeTab: 'beranda', // 'beranda', 'pemesanan', 'service', 'riwayat', 'rekapan'
-            customerCodeInput: '',
+            currentRole: 'customer', 
+            activeTab: 'beranda', 
             customerActiveRecord: null,
-            orders: getStorage('orders', DEFAULT_ORDERS),
-            services: getStorage('services', DEFAULT_SERVICES)
+            orders: DEFAULT_ORDERS,
+            services: DEFAULT_SERVICES
         };
-
-        function saveData() {
-            setStorage('orders', appData.orders);
-            setStorage('services', appData.services);
-        }
 
         const ORDER_STAGES = [
             { title: 'Proses Rancangan', icon: 'fa-file-signature', desc: 'Menyusun spesifikasi & perkiraan biaya' },
@@ -183,32 +158,62 @@
         ];
 
         // ==========================================
-        // UTILITY FUNCTIONS
+        // SUPABASE REALTIME SYNC ENGINE
+        // ==========================================
+        async function loadSupabaseData() {
+            if (!supabase) return;
+            try {
+                const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+                const { data: servicesData } = await supabase.from('services').select('*').order('created_at', { ascending: false });
+
+                if (ordersData && ordersData.length > 0) {
+                    appData.orders = ordersData.map(o => ({
+                        id: o.id, date: o.date, customerName: o.customer_name, room: o.room,
+                        orderType: o.order_type, estimatedPrice: o.estimated_price, progress: o.progress, excelData: o.excel_data
+                    }));
+                }
+                if (servicesData && servicesData.length > 0) {
+                    appData.services = servicesData.map(s => ({
+                        id: s.id, date: s.date, customerName: s.customer_name, room: s.room,
+                        notes: s.notes, estimatedPrice: s.estimated_price, progress: s.progress, items: s.items
+                    }));
+                }
+                renderApp();
+            } catch (err) {
+                console.error("Error loading Supabase data:", err);
+            }
+        }
+
+        function initRealtimeSubscription() {
+            if (!supabase) return;
+            supabase.channel('public-db-changes')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadSupabaseData())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => loadSupabaseData())
+                .subscribe();
+        }
+
+        // ==========================================
+        // UTILITIES & HELPER FUNCTIONS
         // ==========================================
         function formatRupiah(amount) {
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount || 0);
         }
 
         function generateUniqueId(prefix) {
-            const rand = Math.floor(1000 + Math.random() * 9000);
-            return `${prefix}-${rand}`;
+            return `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
         }
 
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
-            
             const bgClass = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600';
             const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
             
-            toast.className = `${bgClass} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 transition-all duration-300 transform translate-x-10 opacity-0 pointer-events-auto text-xs font-semibold`;
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 transition-all duration-300 transform translate-x-10 opacity-0 pointer-events-auto text-xs font-semibold hover:scale-105`;
             toast.innerHTML = `<i class="fa-solid ${icon} text-base"></i> <span>${message}</span>`;
             
             container.appendChild(toast);
-            
-            requestAnimationFrame(() => {
-                toast.classList.remove('translate-x-10', 'opacity-0');
-            });
+            requestAnimationFrame(() => toast.classList.remove('translate-x-10', 'opacity-0'));
 
             setTimeout(() => {
                 toast.classList.add('translate-x-10', 'opacity-0');
@@ -221,10 +226,11 @@
             const container = document.getElementById('modalContainer');
             container.innerHTML = contentHtml;
             overlay.classList.remove('hidden');
-            setTimeout(() => {
+            requestAnimationFrame(() => {
+                overlay.classList.remove('opacity-0');
                 container.classList.remove('scale-95', 'opacity-0');
                 container.classList.add('scale-100', 'opacity-100');
-            }, 10);
+            });
         }
 
         function closeModal() {
@@ -232,13 +238,12 @@
             const container = document.getElementById('modalContainer');
             container.classList.remove('scale-100', 'opacity-100');
             container.classList.add('scale-95', 'opacity-0');
-            setTimeout(() => {
-                overlay.classList.add('hidden');
-            }, 300);
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
         }
 
         // ==========================================
-        // UI RENDER ENGINE
+        // RENDER CORE ENGINE
         // ==========================================
         function renderApp() {
             const app = document.getElementById('app');
@@ -248,47 +253,39 @@
             } else {
                 app.innerHTML = renderAdminView();
                 attachAdminEvents();
-                if (appData.activeTab === 'rekapan') {
-                    setTimeout(initRekapanCharts, 100);
-                }
+                if (appData.activeTab === 'rekapan') setTimeout(initRekapanCharts, 100);
             }
         }
 
         // ------------------------------------------
-        // CUSTOMER VIEW & PROGRESS TRACKER
+        // CUSTOMER VIEW
         // ------------------------------------------
         function renderCustomerView() {
             const record = appData.customerActiveRecord;
             return `
                 <div class="min-h-screen bg-[#00459c] text-white flex flex-col justify-between">
-                    <!-- Top Bar Header -->
                     <header class="p-6 flex justify-between items-center max-w-5xl mx-auto w-full">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                                <i class="fa-solid fa-microchip"></i>
-                            </div>
+                            <img src="DCSC.png" alt="DCC Store" class="w-10 h-10 rounded-xl bg-white/10 p-1 border border-white/20 shadow-sm object-contain">
                             <div>
-                                <h1 class="text-xl font-bold tracking-tight">Bendahara DCC</h1>
+                                <h1 class="text-xl font-bold tracking-tight">DCC Store</h1>
                                 <p class="text-xs text-blue-200">Sistem Pelacakan Layanan & Service 2.0</p>
                             </div>
                         </div>
                         
-                        <!-- Secret Admin Trigger Icon Button -->
-                        <button id="secretAdminBtn" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all cursor-pointer shadow-sm border border-white/20" title="Akses Admin Staff">
+                        <button id="secretAdminBtn" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all duration-300 hover:rotate-12 cursor-pointer shadow-sm border border-white/20" title="Akses Admin Staff">
                             <i class="fa-solid fa-user-shield text-sm"></i>
                         </button>
                     </header>
 
-                    <!-- Main Portal Area -->
                     <main class="flex-grow flex items-center justify-center p-4">
                         <div class="w-full max-w-2xl">
                             ${!record ? renderCustomerSearchCard() : renderCustomerProgressCard(record)}
                         </div>
                     </main>
 
-                    <!-- Footer -->
                     <footer class="p-6 text-center text-xs text-blue-200/80">
-                        Akses Khusus Pelanggan &bull; Realtime Cloud Sync
+                        DCC Store &bull; Realtime Cloud Sync
                     </footer>
                 </div>
             `;
@@ -296,17 +293,17 @@
 
         function renderCustomerSearchCard() {
             return `
-                <div class="bg-white text-slate-800 p-8 sm:p-10 rounded-[28px] shadow-2xl text-center border border-white/20">
+                <div class="bg-white text-slate-800 p-8 sm:p-10 rounded-[28px] shadow-2xl text-center border border-white/20 transform transition-all hover:scale-[1.01]">
                     <div class="w-16 h-16 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center text-blue-600 text-2xl mx-auto mb-5 shadow-sm">
-                        <i class="fa-solid fa-magnifying-glass-location"></i>
+                        <i class="fa-solid fa-magnifying-glass-location animate-bounce"></i>
                     </div>
                     <h2 class="text-2xl font-bold mb-1 text-slate-900">Lacak Status Pesanan / Service</h2>
                     <p class="text-slate-500 text-xs mb-6 max-w-md mx-auto">Masukkan Kode Unik Transaksi (contoh: <span class="text-blue-600 font-mono font-bold">ORD-7821</span> atau <span class="text-blue-600 font-mono font-bold">SVC-4102</span>) untuk memantau pengerjaan.</p>
 
                     <form id="customerLookupForm" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
                         <input type="text" id="customerCodeInput" placeholder="Masukkan kode transaksi..." required uppercase 
-                            class="flex-grow px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 uppercase tracking-wider font-mono text-center sm:text-left text-sm font-semibold">
-                        <button type="submit" class="px-6 py-3.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 text-sm">
+                            class="flex-grow px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 uppercase tracking-wider font-mono text-center sm:text-left text-sm font-semibold transition-all">
+                        <button type="submit" class="px-6 py-3.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold rounded-2xl transition-all duration-300 hover:shadow-xl flex items-center justify-center gap-2 text-sm">
                             <span>Lacak Status</span>
                             <i class="fa-solid fa-arrow-right text-xs"></i>
                         </button>
@@ -326,8 +323,7 @@
             const currentStep = record.progress;
 
             return `
-                <div class="bg-white text-slate-800 rounded-[28px] shadow-2xl overflow-hidden border border-slate-100">
-                    <!-- Top Banner -->
+                <div class="bg-white text-slate-800 rounded-[28px] shadow-2xl overflow-hidden border border-slate-100 fade-in">
                     <div class="bg-[#003b87] text-white p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                             <div class="flex items-center gap-2 mb-1">
@@ -337,35 +333,24 @@
                             <h2 class="text-2xl font-extrabold tracking-tight font-mono">${record.id}</h2>
                             <p class="text-xs text-blue-200 font-medium mt-0.5">${record.customerName} &bull; ${record.room}</p>
                         </div>
-                        <button id="resetSearchBtn" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs text-white border border-white/20 transition-all flex items-center gap-2 font-semibold">
+                        <button id="resetSearchBtn" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs text-white border border-white/20 transition-all font-semibold flex items-center gap-2">
                             <i class="fa-solid fa-arrow-left"></i> Cari Kode Lain
                         </button>
                     </div>
 
-                    <!-- Visual Progress Stepper Bar -->
                     <div class="p-6 sm:p-8 border-b border-slate-100 bg-slate-50">
                         <h3 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-6">Indikator Tahap Layanan</h3>
-                        
                         <div class="relative flex justify-between items-center max-w-xl mx-auto">
-                            <!-- Background Track Line -->
-                            <div class="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1.5 bg-slate-200 rounded-full z-0"></div>
-                            
-                            <!-- Active Progress Line -->
-                            <div class="absolute left-0 top-1/2 transform -translate-y-1/2 h-1.5 bg-dcc-accent rounded-full z-0 transition-all duration-500"
-                                style="width: ${(currentStep / (stages.length - 1)) * 100}%"></div>
+                            <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1.5 bg-slate-200 rounded-full z-0"></div>
+                            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-dcc-accent rounded-full z-0 transition-all duration-700 ease-in-out" style="width: ${(currentStep / (stages.length - 1)) * 100}%"></div>
 
-                            <!-- Steps Icons -->
                             ${stages.map((stage, idx) => {
                                 const isPassed = idx <= currentStep;
                                 const isCurrent = idx === currentStep;
                                 return `
                                     <div class="relative z-10 flex flex-col items-center">
-                                        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
-                                            isCurrent 
-                                                ? 'bg-dcc-accent text-white ring-4 ring-orange-200 step-active scale-110' 
-                                                : isPassed 
-                                                    ? 'bg-dcc-accent text-white' 
-                                                    : 'bg-white text-slate-400 border-2 border-slate-200'
+                                        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-500 ${
+                                            isCurrent ? 'bg-dcc-accent text-white ring-4 ring-orange-200 step-active scale-110' : isPassed ? 'bg-dcc-accent text-white' : 'bg-white text-slate-400 border-2 border-slate-200'
                                         }">
                                             <i class="fa-solid ${stage.icon}"></i>
                                         </div>
@@ -378,7 +363,6 @@
                         </div>
                     </div>
 
-                    <!-- Detail Section -->
                     <div class="p-6 sm:p-8 space-y-6">
                         <div class="bg-blue-50/70 border border-blue-100 p-4 rounded-2xl flex items-center gap-4">
                             <div class="w-10 h-10 rounded-xl bg-[#0058c4] text-white flex items-center justify-center text-lg flex-shrink-0 shadow-sm">
@@ -416,15 +400,13 @@
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 ${record.excelData && record.excelData.length > 0 ? record.excelData.map(item => `
-                                    <tr class="hover:bg-slate-50/80">
+                                    <tr class="hover:bg-slate-50 transition-colors">
                                         <td class="p-3 font-semibold text-slate-800">${item.component}</td>
                                         <td class="p-3 text-slate-600">${item.spec}</td>
                                         <td class="p-3 text-center font-medium">${item.qty}</td>
                                         <td class="p-3 text-right font-mono text-slate-700">${formatRupiah(item.price)}</td>
                                     </tr>
-                                `).join('') : `
-                                    <tr><td colspan="4" class="p-4 text-center text-slate-400">Rancangan belum diunggah.</td></tr>
-                                `}
+                                `).join('') : `<tr><td colspan="4" class="p-4 text-center text-slate-400">Belum ada detail spesifikasi.</td></tr>`}
                             </tbody>
                         </table>
                     </div>
@@ -441,10 +423,9 @@
             return `
                 <div class="space-y-4">
                     <h4 class="font-bold text-slate-800 text-xs">Barang Service & Kendala</h4>
-                    
                     <div class="space-y-2">
                         ${record.items.map((item, idx) => `
-                            <div class="p-3.5 border border-slate-200 rounded-2xl bg-slate-50/60 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                            <div class="p-3.5 border border-slate-200 rounded-2xl bg-slate-50 flex justify-between items-center">
                                 <div class="flex items-center gap-3">
                                     <span class="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">${idx + 1}</span>
                                     <div>
@@ -456,11 +437,7 @@
                         `).join('')}
                     </div>
 
-                    ${record.notes ? `
-                        <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900">
-                            <strong><i class="fa-solid fa-note-sticky mr-1"></i>Catatan Layanan:</strong> ${record.notes}
-                        </div>
-                    ` : ''}
+                    ${record.notes ? `<div class="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900"><strong><i class="fa-solid fa-note-sticky mr-1"></i>Catatan:</strong> ${record.notes}</div>` : ''}
 
                     <div class="flex justify-between items-center p-4 bg-[#003b87] text-white rounded-2xl shadow-sm">
                         <span class="text-xs font-semibold text-blue-200">Estimasi Biaya Perbaikan</span>
@@ -471,29 +448,24 @@
         }
 
         // ------------------------------------------
-        // ADMIN DASHBOARD & BENDAHARA DCC STYLE LAYOUT
+        // ADMIN DASHBOARD & BRANDING DCC STORE
         // ------------------------------------------
         function renderAdminView() {
             return `
-                <div class="min-h-screen bg-[#00459c] text-white flex flex-col">
-                    <!-- Header Section (Matching Bendahara DCC Header Style) -->
-                    <header class="bg-[#003b87] text-white sticky top-0 z-30 shadow-lg border-b border-white/10">
+                <div class="min-h-screen bg-[#00459c] text-white flex flex-col fade-in">
+                    <header class="bg-[#003b87] text-white sticky top-0 z-30 shadow-lg border-b border-white/10 backdrop-blur-md bg-opacity-95">
                         <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <!-- Left Admin User Info -->
                             <div class="flex items-center gap-3">
-                                <div class="w-11 h-11 rounded-full bg-blue-400/20 border-2 border-blue-300/40 flex items-center justify-center text-amber-300 font-bold text-xl shadow-inner">
-                                    <i class="fa-solid fa-user-shield"></i>
-                                </div>
+                                <img src="DCSC.png" alt="DCC Store Logo" class="w-11 h-11 rounded-full bg-white/10 p-1 border-2 border-blue-300/40 object-contain shadow-inner">
                                 <div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-[11px] font-semibold text-blue-200">Admin Staff</span>
                                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                     </div>
-                                    <h1 class="text-xl font-extrabold tracking-tight">Bendahara DCC</h1>
+                                    <h1 class="text-xl font-extrabold tracking-tight">DCC Store</h1>
                                 </div>
                             </div>
 
-                            <!-- Right Nav Actions & Logout -->
                             <div class="flex items-center gap-3">
                                 <div class="bg-white/10 p-1 rounded-2xl border border-white/15 flex gap-1">
                                     ${renderNavBtn('beranda', 'Beranda', 'fa-house')}
@@ -503,22 +475,21 @@
                                     ${renderNavBtn('rekapan', 'Rekapan', 'fa-chart-line')}
                                 </div>
 
-                                <button id="adminLogoutBtn" class="w-9 h-9 rounded-full bg-white/10 hover:bg-rose-600 text-white flex items-center justify-center transition-all border border-white/20" title="Keluar">
+                                <button id="adminLogoutBtn" class="w-9 h-9 rounded-full bg-white/10 hover:bg-rose-600 text-white flex items-center justify-center transition-all border border-white/20 hover:scale-105" title="Keluar">
                                     <i class="fa-solid fa-right-from-bracket text-xs"></i>
                                 </button>
                             </div>
                         </div>
                     </header>
 
-                    <!-- Main Dashboard Window Container -->
                     <main class="flex-grow max-w-6xl w-full mx-auto p-4 sm:p-6 my-4">
-                        <div class="bg-slate-50 text-slate-800 rounded-[28px] p-6 sm:p-8 shadow-2xl space-y-6">
+                        <div class="bg-slate-50 text-slate-800 rounded-[28px] p-6 sm:p-8 shadow-2xl space-y-6 transition-all">
                             ${renderAdminTabContent()}
                         </div>
                     </main>
 
                     <footer class="py-4 text-center text-xs text-blue-200/70">
-                        Akses Khusus Bendahara &bull; Realtime Cloud Sync
+                        Akses Khusus DCC Store &bull; Realtime Cloud Sync
                     </footer>
                 </div>
             `;
@@ -527,8 +498,8 @@
         function renderNavBtn(tabKey, label, icon) {
             const isActive = appData.activeTab === tabKey;
             return `
-                <button onclick="switchAdminTab('${tabKey}')" class="px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 ${
-                    isActive ? 'bg-white text-[#003b87] shadow-sm font-bold' : 'text-blue-100 hover:bg-white/10'
+                <button onclick="switchAdminTab('${tabKey}')" class="px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all duration-300 flex items-center gap-1.5 ${
+                    isActive ? 'bg-white text-[#003b87] shadow-md font-bold scale-105' : 'text-blue-100 hover:bg-white/10'
                 }">
                     <i class="fa-solid ${icon}"></i> <span class="hidden md:inline">${label}</span>
                 </button>
@@ -551,9 +522,6 @@
             }
         }
 
-        // ------------------------------------------
-        // TAB 1: BERANDA (DASHBOARD - BENDAHARA DCC STYLE)
-        // ------------------------------------------
         function renderTabBeranda() {
             const totalOrders = appData.orders.length;
             const totalServices = appData.services.length;
@@ -562,9 +530,8 @@
             const totalGrandKas = orderIncome + serviceIncome;
 
             return `
-                <div class="space-y-6">
-                    <!-- Grand Saldo Main Banner Card (Matching Screenshot style) -->
-                    <div class="bg-gradient-to-r from-[#003b87] to-[#0058c4] text-white p-6 sm:p-8 rounded-[24px] shadow-lg relative overflow-hidden space-y-4">
+                <div class="space-y-6 fade-in">
+                    <div class="bg-gradient-to-r from-[#003b87] to-[#0058c4] text-white p-6 sm:p-8 rounded-[24px] shadow-xl relative overflow-hidden space-y-4">
                         <div class="flex justify-between items-center">
                             <span class="text-xs font-medium text-blue-200 tracking-wide uppercase">Total Saldo Kas Akun Aktif</span>
                             <i class="fa-regular fa-eye text-blue-200 text-sm"></i>
@@ -584,92 +551,34 @@
                         </div>
                     </div>
 
-                    <!-- Sector Summaries (Pastel Cards Matching Screenshot) -->
-                    <div>
-                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Ringkasan Keuangan Sektor</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <!-- Soft Blue Card -->
-                            <div class="bg-blue-50/80 border border-blue-100 p-4 rounded-2xl flex items-center gap-3.5">
-                                <div class="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg shadow-sm">
-                                    <i class="fa-solid fa-cart-shopping"></i>
-                                </div>
-                                <div>
-                                    <span class="text-[10px] font-bold uppercase text-slate-400">Total Unit Pesanan</span>
-                                    <p class="text-lg font-extrabold text-blue-900">${totalOrders} <span class="text-xs text-slate-500 font-normal">Unit</span></p>
-                                </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-blue-50/80 border border-blue-100 p-4 rounded-2xl flex items-center gap-3.5 hover:shadow-md transition-all">
+                            <div class="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg shadow-sm">
+                                <i class="fa-solid fa-cart-shopping"></i>
                             </div>
-
-                            <!-- Soft Green Card -->
-                            <div class="bg-emerald-50/80 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3.5">
-                                <div class="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shadow-sm">
-                                    <i class="fa-solid fa-wrench"></i>
-                                </div>
-                                <div>
-                                    <span class="text-[10px] font-bold uppercase text-slate-400">Total Unit Service</span>
-                                    <p class="text-lg font-extrabold text-emerald-900">${totalServices} <span class="text-xs text-slate-500 font-normal">Unit</span></p>
-                                </div>
-                            </div>
-
-                            <!-- Soft Orange Card -->
-                            <div class="bg-amber-50/80 border border-amber-100 p-4 rounded-2xl flex items-center gap-3.5">
-                                <div class="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-sm">
-                                    <i class="fa-solid fa-sack-dollar"></i>
-                                </div>
-                                <div>
-                                    <span class="text-[10px] font-bold uppercase text-slate-400">Rata-rata Transaksi</span>
-                                    <p class="text-base font-bold text-amber-900 font-mono">${formatRupiah((totalGrandKas / (totalOrders + totalServices)) || 0)}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Split Recent Activities Section -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-                        <!-- Recent Orders -->
-                        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
-                            <div class="flex justify-between items-center pb-3 border-b border-slate-100">
-                                <h3 class="font-bold text-slate-800 text-xs flex items-center gap-2">
-                                    <i class="fa-solid fa-cart-shopping text-blue-600"></i> Pemesanan Terakhir
-                                </h3>
-                                <button onclick="switchAdminTab('pemesanan')" class="text-xs text-blue-600 font-bold hover:underline">Lihat Semua</button>
-                            </div>
-                            <div class="divide-y divide-slate-100">
-                                ${appData.orders.slice(0, 4).map(o => `
-                                    <div class="py-3 flex justify-between items-center text-xs">
-                                        <div>
-                                            <span class="font-mono font-bold text-blue-700">${o.id}</span>
-                                            <p class="font-semibold text-slate-700 mt-0.5">${o.customerName} (${o.room})</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${o.progress === 4 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">${ORDER_STAGES[o.progress].title}</span>
-                                            <p class="font-mono text-slate-600 font-bold mt-0.5">${formatRupiah(o.estimatedPrice)}</p>
-                                        </div>
-                                    </div>
-                                `).join('')}
+                            <div>
+                                <span class="text-[10px] font-bold uppercase text-slate-400">Total Unit Pesanan</span>
+                                <p class="text-lg font-extrabold text-blue-900">${totalOrders} <span class="text-xs text-slate-500 font-normal">Unit</span></p>
                             </div>
                         </div>
 
-                        <!-- Recent Services -->
-                        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
-                            <div class="flex justify-between items-center pb-3 border-b border-slate-100">
-                                <h3 class="font-bold text-slate-800 text-xs flex items-center gap-2">
-                                    <i class="fa-solid fa-wrench text-amber-500"></i> Service Terakhir
-                                </h3>
-                                <button onclick="switchAdminTab('service')" class="text-xs text-blue-600 font-bold hover:underline">Lihat Semua</button>
+                        <div class="bg-emerald-50/80 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3.5 hover:shadow-md transition-all">
+                            <div class="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shadow-sm">
+                                <i class="fa-solid fa-wrench"></i>
                             </div>
-                            <div class="divide-y divide-slate-100">
-                                ${appData.services.slice(0, 4).map(s => `
-                                    <div class="py-3 flex justify-between items-center text-xs">
-                                        <div>
-                                            <span class="font-mono font-bold text-amber-600">${s.id}</span>
-                                            <p class="font-semibold text-slate-700 mt-0.5">${s.customerName} (${s.items.length} Barang)</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.progress === 3 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}">${SERVICE_STAGES[s.progress].title}</span>
-                                            <p class="font-mono text-slate-600 font-bold mt-0.5">${formatRupiah(s.estimatedPrice)}</p>
-                                        </div>
-                                    </div>
-                                `).join('')}
+                            <div>
+                                <span class="text-[10px] font-bold uppercase text-slate-400">Total Unit Service</span>
+                                <p class="text-lg font-extrabold text-emerald-900">${totalServices} <span class="text-xs text-slate-500 font-normal">Unit</span></p>
+                            </div>
+                        </div>
+
+                        <div class="bg-amber-50/80 border border-amber-100 p-4 rounded-2xl flex items-center gap-3.5 hover:shadow-md transition-all">
+                            <div class="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-sm">
+                                <i class="fa-solid fa-sack-dollar"></i>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-bold uppercase text-slate-400">Rata-rata Transaksi</span>
+                                <p class="text-base font-bold text-amber-900 font-mono">${formatRupiah((totalGrandKas / (totalOrders + totalServices)) || 0)}</p>
                             </div>
                         </div>
                     </div>
@@ -678,25 +587,21 @@
         }
 
         // ------------------------------------------
-        // TAB 2: PEMESANAN (MANAGEMENT & EXCEL PARSER)
+        // TAB 2: PEMESANAN (ORDERS)
         // ------------------------------------------
         function renderTabPemesanan() {
             return `
-                <div class="space-y-6">
-                    <!-- Actions Header Bar -->
+                <div class="space-y-6 fade-in">
                     <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                         <div class="relative flex-grow max-w-md">
                             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                             <input type="text" id="searchOrderInput" onkeyup="filterOrderTable()" placeholder="Cari Kode ID, Nama, atau Kamar..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium">
                         </div>
-                        
-                        <!-- Orange Accent Action Button -->
-                        <button onclick="openOrderModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20">
+                        <button onclick="openOrderModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 hover:scale-105">
                             <i class="fa-solid fa-plus"></i> + Tambah Pesanan
                         </button>
                     </div>
 
-                    <!-- Orders Main Data Table -->
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs" id="orderTable">
@@ -723,12 +628,10 @@
         }
 
         function renderOrderRows(ordersList) {
-            if (ordersList.length === 0) {
-                return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
-            }
+            if (ordersList.length === 0) return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
 
             return ordersList.map(item => `
-                <tr class="hover:bg-slate-50/80">
+                <tr class="hover:bg-slate-50 transition-colors">
                     <td class="p-3.5 font-mono font-bold text-blue-700">
                         <button onclick="viewOrderDetail('${item.id}')" class="hover:underline flex items-center gap-1">
                             <i class="fa-solid fa-receipt text-slate-400"></i> ${item.id}
@@ -740,15 +643,13 @@
                     <td class="p-3.5 text-slate-600 font-medium">${item.orderType}</td>
                     <td class="p-3.5">
                         <select onchange="updateOrderStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
-                            ${ORDER_STAGES.map((stg, idx) => `
-                                <option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>
-                            `).join('')}
+                            ${ORDER_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
                         </select>
                     </td>
                     <td class="p-3.5 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
                     <td class="p-3.5">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="shareWAOrder('${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center" title="Konfirmasi WA">
+                            <button onclick="openChatModal('order', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all duration-300 flex items-center justify-center hover:scale-110" title="Pratinjau / Salin Chat WA">
                                 <i class="fa-brands fa-whatsapp text-sm"></i>
                             </button>
                             <button onclick="openOrderModal('${item.id}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center" title="Edit">
@@ -773,13 +674,186 @@
             document.getElementById('orderTableBody').innerHTML = renderOrderRows(filtered);
         }
 
+        // ------------------------------------------
+        // TAB 3: SERVICE
+        // ------------------------------------------
+        function renderTabService() {
+            return `
+                <div class="space-y-6 fade-in">
+                    <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="relative flex-grow max-w-md">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" id="searchServiceInput" onkeyup="filterServiceTable()" placeholder="Cari Kode ID, Nama, atau Kamar..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium">
+                        </div>
+                        <button onclick="openServiceModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 hover:scale-105">
+                            <i class="fa-solid fa-plus"></i> + Tambah Service
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs" id="serviceTable">
+                                <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
+                                    <tr>
+                                        <th class="p-3.5">Kode Unik</th>
+                                        <th class="p-3.5">Tgl Masuk</th>
+                                        <th class="p-3.5">Nama Customer</th>
+                                        <th class="p-3.5">Kamar / Bagian</th>
+                                        <th class="p-3.5 text-center">Jml Barang</th>
+                                        <th class="p-3.5">Progres</th>
+                                        <th class="p-3.5 text-right">Estimasi Biaya</th>
+                                        <th class="p-3.5 text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100" id="serviceTableBody">
+                                    ${renderServiceRows(appData.services)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderServiceRows(servicesList) {
+            if (servicesList.length === 0) return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data service.</td></tr>`;
+
+            return servicesList.map(item => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="p-3.5 font-mono font-bold text-amber-600">
+                        <button onclick="viewServiceDetail('${item.id}')" class="hover:underline flex items-center gap-1">
+                            <i class="fa-solid fa-screwdriver-wrench text-slate-400"></i> ${item.id}
+                        </button>
+                    </td>
+                    <td class="p-3.5 text-slate-500">${item.date}</td>
+                    <td class="p-3.5 font-bold text-slate-800">${item.customerName}</td>
+                    <td class="p-3.5 text-slate-600">${item.room}</td>
+                    <td class="p-3.5 text-center font-bold text-slate-700">
+                        <span class="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px]">${item.items ? item.items.length : 0} Item</span>
+                    </td>
+                    <td class="p-3.5">
+                        <select onchange="updateServiceStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                            ${SERVICE_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td class="p-3.5 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
+                    <td class="p-3.5">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="openChatModal('service', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all duration-300 flex items-center justify-center hover:scale-110" title="Pratinjau / Salin Chat WA">
+                                <i class="fa-brands fa-whatsapp text-sm"></i>
+                            </button>
+                            <button onclick="openServiceModal('${item.id}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center" title="Edit">
+                                <i class="fa-solid fa-pen-to-square text-xs"></i>
+                            </button>
+                            <button onclick="deleteService('${item.id}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center" title="Hapus">
+                                <i class="fa-solid fa-trash text-xs"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterServiceTable() {
+            const val = document.getElementById('searchServiceInput').value.toLowerCase();
+            const filtered = appData.services.filter(s => 
+                s.id.toLowerCase().includes(val) || 
+                s.customerName.toLowerCase().includes(val) || 
+                s.room.toLowerCase().includes(val)
+            );
+            document.getElementById('serviceTableBody').innerHTML = renderServiceRows(filtered);
+        }
+
+        // ------------------------------------------
+        // CHAT PREVIEW & COPY MODAL (PENGGANTI DIRECT WA LINK)
+        // ------------------------------------------
+        function openChatModal(type, id) {
+            let item = null;
+            let messageText = '';
+
+            if (type === 'order') {
+                item = appData.orders.find(o => o.id === id);
+                if (!item) return;
+                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
+                    `Berikut konfirmasi rincian rancangan pemesanan unit di *DCC Store*:\n` +
+                    `------------------------------------\n` +
+                    `📌 *Kode Unik ID:* ${item.id}\n` +
+                    `📅 *Tanggal Masuk:* ${item.date}\n` +
+                    `🖥️ *Jenis Pesanan:* ${item.orderType}\n` +
+                    `💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n` +
+                    `🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n` +
+                    `------------------------------------\n` +
+                    `Anda dapat memantau progres pesanan secara real-time melalui website kami dengan memasukkan Kode Unik ID di atas.\n\n` +
+                    `Terima kasih telah memercayakan kebutuhan IT Anda kepada DCC Store! 🙏`;
+            } else {
+                item = appData.services.find(s => s.id === id);
+                if (!item) return;
+                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
+                    `Berikut konfirmasi update layanan service di *DCC Store*:\n` +
+                    `------------------------------------\n` +
+                    `📌 *Kode Unik ID:* ${item.id}\n` +
+                    `📅 *Tanggal Masuk:* ${item.date}\n` +
+                    `📦 *Jumlah Barang:* ${item.items.length} Item\n` +
+                    `💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n` +
+                    `🔄 *Status Terkini:* ${SERVICE_STAGES[item.progress].title}\n` +
+                    `------------------------------------\n` +
+                    `Anda dapat memantau status pengerjaan secara real-time melalui website kami dengan memasukkan Kode Unik ID di atas.\n\n` +
+                    `Terima kasih telah memercayakan perbaikan perangkat kepada DCC Store! 🙏`;
+            }
+
+            const modalHtml = `
+                <div class="p-6 sm:p-8 space-y-5 fade-in">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-brands fa-whatsapp text-emerald-600 text-xl"></i>
+                            <h3 class="font-bold text-slate-900 text-base">Pratinjau & Salin Pesan WA</h3>
+                        </div>
+                        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-600">Draf Pesan WhatsApp:</label>
+                        <textarea id="chatTextarea" readonly class="w-full h-48 p-3.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-600 outline-none text-slate-800 leading-relaxed">${messageText}</textarea>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                        <button onclick="copyChatMessage()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all duration-300 shadow-md flex items-center justify-center gap-2">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>Salin Teks Chat</span>
+                        </button>
+                        <button onclick="openWhatsAppDirect('${encodeURIComponent(messageText)}')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-300 shadow-md flex items-center justify-center gap-2">
+                            <i class="fa-brands fa-whatsapp"></i>
+                            <span>Buka WA</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            openModal(modalHtml);
+        }
+
+        function copyChatMessage() {
+            const textarea = document.getElementById('chatTextarea');
+            if (textarea) {
+                textarea.select();
+                navigator.clipboard.writeText(textarea.value);
+                showToast('Teks pesan berhasil disalin ke clipboard!', 'success');
+            }
+        }
+
+        function openWhatsAppDirect(encodedMsg) {
+            window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
+        }
+
+        // ------------------------------------------
+        // MODALS & ACTIONS CRUD (SUPABASE INTEGRATED)
+        // ------------------------------------------
         function openOrderModal(orderId = null) {
             const isEdit = !!orderId;
             const record = isEdit ? appData.orders.find(o => o.id === orderId) : null;
             const newId = isEdit ? record.id : generateUniqueId('ORD');
 
             const contentHtml = `
-                <div class="p-6 sm:p-8 space-y-5">
+                <div class="p-6 sm:p-8 space-y-5 fade-in">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-4">
                         <h3 class="font-bold text-slate-900 text-lg">${isEdit ? 'Edit Data Pemesanan' : 'Tambah Pesanan Baru'}</h3>
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
@@ -788,7 +862,7 @@
                     <form id="orderForm" onsubmit="saveOrderForm(event, '${isEdit ? record.id : ''}')" class="space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Kode Unik (Otomatis)</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Kode Unik</label>
                                 <input type="text" id="ordId" value="${newId}" readonly class="w-full px-3.5 py-2.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-blue-700">
                             </div>
                             <div>
@@ -803,21 +877,16 @@
                                 <input type="text" id="ordRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Jenis Pesanan (Manual)</label>
-                                <input type="text" id="ordType" value="${isEdit ? record.orderType : ''}" placeholder="mis: PC Full Set, Printer..." required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Jenis Pesanan</label>
+                                <input type="text" id="ordType" value="${isEdit ? record.orderType : ''}" placeholder="mis: PC Full Set" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
                             </div>
                         </div>
 
-                        <!-- EXCEL PARSER PASTE AREA -->
                         <div class="space-y-2 border-t border-b border-slate-100 py-4">
                             <div class="flex justify-between items-center">
-                                <label class="block text-xs font-bold text-blue-900">
-                                    <i class="fa-solid fa-file-excel text-emerald-600 mr-1"></i> Paste Tabel Rancangan dari Excel
-                                </label>
-                                <span class="text-[10px] text-slate-400">Salin dari Excel lalu Tempel di bawah</span>
+                                <label class="block text-xs font-bold text-blue-900"><i class="fa-solid fa-file-excel text-emerald-600 mr-1"></i> Paste Tabel Rancangan dari Excel</label>
                             </div>
-                            <textarea id="excelPasteArea" onpaste="handleExcelPaste(event)" placeholder="Tempel (Ctrl+V) tabel spesifikasi Excel di sini..." 
-                                class="w-full h-20 p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none"></textarea>
+                            <textarea id="excelPasteArea" onpaste="handleExcelPaste(event)" placeholder="Tempel (Ctrl+V) tabel spesifikasi Excel di sini..." class="w-full h-20 p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none"></textarea>
 
                             <div class="mt-2">
                                 <h4 class="text-[11px] font-bold text-slate-500 mb-1">Hasil Konversi Spesifikasi:</h4>
@@ -831,8 +900,7 @@
                                                 <th class="p-2 text-right">Harga</th>
                                             </tr>
                                         </thead>
-                                        <tbody id="excelPreviewBody" class="divide-y divide-slate-100 font-mono">
-                                        </tbody>
+                                        <tbody id="excelPreviewBody" class="divide-y divide-slate-100 font-mono"></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -844,9 +912,7 @@
                                 <input type="number" id="ordPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-600 outline-none">
                             </div>
                             <div class="flex items-end">
-                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">
-                                    Simpan Pesanan
-                                </button>
+                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">Simpan Pesanan</button>
                             </div>
                         </div>
                     </form>
@@ -879,9 +945,7 @@
                     const spec = cols[1] ? cols[1].trim() : '-';
                     const qty = cols[2] && !isNaN(parseInt(cols[2])) ? parseInt(cols[2]) : 1;
                     let price = 0;
-                    if (cols[3]) {
-                        price = parseInt(cols[3].replace(/[^0-9]/g, '')) || 0;
-                    }
+                    if (cols[3]) price = parseInt(cols[3].replace(/[^0-9]/g, '')) || 0;
 
                     parsedItems.push({ component, spec, qty, price });
                     calculatedTotal += (qty * price);
@@ -890,12 +954,8 @@
 
             window.tempExcelParsed = parsedItems;
             renderExcelPreviewTable(parsedItems);
-
-            if (calculatedTotal > 0) {
-                document.getElementById('ordPrice').value = calculatedTotal;
-            }
-
-            showToast(`Berhasil mengonversi ${parsedItems.length} baris tabel Excel!`, 'success');
+            if (calculatedTotal > 0) document.getElementById('ordPrice').value = calculatedTotal;
+            showToast(`Berhasil mengonversi ${parsedItems.length} baris Excel!`, 'success');
         }
 
         function renderExcelPreviewTable(items) {
@@ -905,7 +965,6 @@
                 tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-slate-400 text-xs">Belum ada data tabel. Paste dari Excel di atas.</td></tr>`;
                 return;
             }
-
             tbody.innerHTML = items.map(it => `
                 <tr class="hover:bg-slate-50">
                     <td class="p-2 font-semibold text-slate-800">${it.component}</td>
@@ -916,7 +975,7 @@
             `).join('');
         }
 
-        function saveOrderForm(e, editId) {
+        async function saveOrderForm(e, editId) {
             e.preventDefault();
             const id = document.getElementById('ordId').value;
             const customerName = document.getElementById('ordCustomer').value;
@@ -925,44 +984,53 @@
             const estimatedPrice = parseInt(document.getElementById('ordPrice').value) || 0;
             const excelData = window.tempExcelParsed || [];
 
-            if (editId) {
-                const idx = appData.orders.findIndex(o => o.id === editId);
-                if (idx !== -1) {
-                    appData.orders[idx] = {
-                        ...appData.orders[idx],
-                        customerName, room, orderType, estimatedPrice, excelData
-                    };
+            const payload = {
+                id, date: new Date().toISOString().split('T')[0],
+                customer_name: customerName, room, order_type: orderType,
+                estimated_price: estimatedPrice, progress: 0, excel_data: excelData
+            };
+
+            if (supabase) {
+                if (editId) {
+                    await supabase.from('orders').update(payload).eq('id', editId);
+                } else {
+                    await supabase.from('orders').insert([payload]);
                 }
+                await loadSupabaseData();
             } else {
-                appData.orders.unshift({
-                    id,
-                    date: new Date().toISOString().split('T')[0],
-                    customerName, room, orderType, estimatedPrice,
-                    progress: 0,
-                    excelData
-                });
+                if (editId) {
+                    const idx = appData.orders.findIndex(o => o.id === editId);
+                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], customerName, room, orderType, estimatedPrice, excelData };
+                } else {
+                    appData.orders.unshift({ id, date: payload.date, customerName, room, orderType, estimatedPrice, progress: 0, excelData });
+                }
+                renderApp();
             }
 
-            saveData();
             closeModal();
-            renderApp();
             showToast('Data pemesanan berhasil disimpan!', 'success');
         }
 
-        function updateOrderStatus(id, newStatusIdx) {
-            const idx = appData.orders.findIndex(o => o.id === id);
-            if (idx !== -1) {
-                appData.orders[idx].progress = parseInt(newStatusIdx);
-                saveData();
-                showToast(`Status ${id} diperbarui!`, 'success');
+        async function updateOrderStatus(id, newStatusIdx) {
+            if (supabase) {
+                await supabase.from('orders').update({ progress: parseInt(newStatusIdx) }).eq('id', id);
+                await loadSupabaseData();
+            } else {
+                const idx = appData.orders.findIndex(o => o.id === id);
+                if (idx !== -1) appData.orders[idx].progress = parseInt(newStatusIdx);
             }
+            showToast(`Status ${id} diperbarui!`, 'success');
         }
 
-        function deleteOrder(id) {
+        async function deleteOrder(id) {
             if (confirm(`Yakin ingin menghapus pesanan ${id}?`)) {
-                appData.orders = appData.orders.filter(o => o.id !== id);
-                saveData();
-                renderApp();
+                if (supabase) {
+                    await supabase.from('orders').delete().eq('id', id);
+                    await loadSupabaseData();
+                } else {
+                    appData.orders = appData.orders.filter(o => o.id !== id);
+                    renderApp();
+                }
                 showToast('Data pemesanan berhasil dihapus.', 'info');
             }
         }
@@ -970,139 +1038,7 @@
         function viewOrderDetail(id) {
             const item = appData.orders.find(o => o.id === id);
             if (!item) return;
-
-            const contentHtml = `
-                <div class="p-6 space-y-4">
-                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                        <div>
-                            <span class="text-xs font-mono font-bold text-blue-700">${item.id}</span>
-                            <h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3>
-                        </div>
-                        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-                    </div>
-
-                    ${renderCustomerOrderDetails(item)}
-                </div>
-            `;
-            openModal(contentHtml);
-        }
-
-        function shareWAOrder(id) {
-            const item = appData.orders.find(o => o.id === id);
-            if (!item) return;
-
-            const textMsg = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
-                `Berikut konfirmasi rincian rancangan pemesanan unit di *DCC Center*:\n` +
-                `------------------------------------\n` +
-                `📌 *Kode Unik ID:* ${item.id}\n` +
-                `📅 *Tanggal Masuk:* ${item.date}\n` +
-                `🖥️ *Jenis Pesanan:* ${item.orderType}\n` +
-                `💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n` +
-                `🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n` +
-                `------------------------------------\n` +
-                `Anda dapat memantau progres pesanan secara real-time melalui website aplikasi kami dengan memasukkan Kode Unik ID di atas.\n\n` +
-                `Terima kasih telah memercayakan kebutuhan IT Anda kepada Bendahara DCC! 🙏`;
-
-            const encoded = encodeURIComponent(textMsg);
-            window.open(`https://wa.me/?text=${encoded}`, '_blank');
-        }
-
-        // ------------------------------------------
-        // TAB 3: SERVICE (DYNAMIC MULTI-ITEM)
-        // ------------------------------------------
-        function renderTabService() {
-            return `
-                <div class="space-y-6">
-                    <!-- Actions Header Bar -->
-                    <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                        <div class="relative flex-grow max-w-md">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                            <input type="text" id="searchServiceInput" onkeyup="filterServiceTable()" placeholder="Cari Kode ID, Nama, atau Kamar..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium">
-                        </div>
-                        
-                        <!-- Orange Accent Action Button -->
-                        <button onclick="openServiceModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20">
-                            <i class="fa-solid fa-plus"></i> + Tambah Service
-                        </button>
-                    </div>
-
-                    <!-- Services Main Data Table -->
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs" id="serviceTable">
-                                <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
-                                    <tr>
-                                        <th class="p-3.5">Kode Unik</th>
-                                        <th class="p-3.5">Tgl Masuk</th>
-                                        <th class="p-3.5">Nama Customer</th>
-                                        <th class="p-3.5">Kamar / Bagian</th>
-                                        <th class="p-3.5 text-center">Jml Barang</th>
-                                        <th class="p-3.5">Progres</th>
-                                        <th class="p-3.5 text-right">Estimasi Biaya</th>
-                                        <th class="p-3.5 text-center">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100" id="serviceTableBody">
-                                    ${renderServiceRows(appData.services)}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderServiceRows(servicesList) {
-            if (servicesList.length === 0) {
-                return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data service.</td></tr>`;
-            }
-
-            return servicesList.map(item => `
-                <tr class="hover:bg-slate-50/80">
-                    <td class="p-3.5 font-mono font-bold text-amber-600">
-                        <button onclick="viewServiceDetail('${item.id}')" class="hover:underline flex items-center gap-1">
-                            <i class="fa-solid fa-screwdriver-wrench text-slate-400"></i> ${item.id}
-                        </button>
-                    </td>
-                    <td class="p-3.5 text-slate-500">${item.date}</td>
-                    <td class="p-3.5 font-bold text-slate-800">${item.customerName}</td>
-                    <td class="p-3.5 text-slate-600">${item.room}</td>
-                    <td class="p-3.5 text-center font-bold text-slate-700">
-                        <span class="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px]">${item.items ? item.items.length : 0} Item</span>
-                    </td>
-                    <td class="p-3.5">
-                        <select onchange="updateServiceStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
-                            ${SERVICE_STAGES.map((stg, idx) => `
-                                <option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>
-                            `).join('')}
-                        </select>
-                    </td>
-                    <td class="p-3.5 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
-                    <td class="p-3.5">
-                        <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="shareWAService('${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center" title="Konfirmasi WA">
-                                <i class="fa-brands fa-whatsapp text-sm"></i>
-                            </button>
-                            <button onclick="openServiceModal('${item.id}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center" title="Edit">
-                                <i class="fa-solid fa-pen-to-square text-xs"></i>
-                            </button>
-                            <button onclick="deleteService('${item.id}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center" title="Hapus">
-                                <i class="fa-solid fa-trash text-xs"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        function filterServiceTable() {
-            const val = document.getElementById('searchServiceInput').value.toLowerCase();
-            const filtered = appData.services.filter(s => 
-                s.id.toLowerCase().includes(val) || 
-                s.customerName.toLowerCase().includes(val) || 
-                s.room.toLowerCase().includes(val)
-            );
-            document.getElementById('serviceTableBody').innerHTML = renderServiceRows(filtered);
+            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-blue-700">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerOrderDetails(item)}</div>`);
         }
 
         function openServiceModal(serviceId = null) {
@@ -1111,7 +1047,7 @@
             const newId = isEdit ? record.id : generateUniqueId('SVC');
 
             const contentHtml = `
-                <div class="p-6 sm:p-8 space-y-5">
+                <div class="p-6 sm:p-8 space-y-5 fade-in">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-4">
                         <h3 class="font-bold text-slate-900 text-lg">${isEdit ? 'Edit Data Service' : 'Tambah Service Baru'}</h3>
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
@@ -1134,19 +1070,12 @@
                             <input type="text" id="svcRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
                         </div>
 
-                        <!-- DYNAMIC MULTI ITEM SECTION -->
                         <div class="space-y-3 border-t border-b border-slate-100 py-4">
                             <div class="flex justify-between items-center">
-                                <label class="block text-xs font-bold text-slate-800">
-                                    <i class="fa-solid fa-boxes-stacked text-amber-500 mr-1"></i> Barang Service & Kendala
-                                </label>
-                                <button type="button" onclick="addServiceItemRow()" class="px-3 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1">
-                                    <i class="fa-solid fa-plus"></i> Tambah Servican
-                                </button>
+                                <label class="block text-xs font-bold text-slate-800"><i class="fa-solid fa-boxes-stacked text-amber-500 mr-1"></i> Barang Service & Kendala</label>
+                                <button type="button" onclick="addServiceItemRow()" class="px-3 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1"><i class="fa-solid fa-plus"></i> Tambah Servican</button>
                             </div>
-
-                            <div id="serviceItemsContainer" class="space-y-3 max-h-48 overflow-y-auto pr-1">
-                            </div>
+                            <div id="serviceItemsContainer" class="space-y-3 max-h-48 overflow-y-auto pr-1"></div>
                         </div>
 
                         <div>
@@ -1160,9 +1089,7 @@
                                 <input type="number" id="svcPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-600 outline-none">
                             </div>
                             <div class="flex items-end">
-                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">
-                                    Simpan Service
-                                </button>
+                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">Simpan Service</button>
                             </div>
                         </div>
                     </form>
@@ -1184,17 +1111,15 @@
             rowDiv.className = 'service-item-row flex gap-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200';
             rowDiv.innerHTML = `
                 <div class="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input type="text" placeholder="Barang (mis: Printer Epson L3110)" value="${nameVal}" required class="svc-item-name px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-medium">
-                    <input type="text" placeholder="Kendala (mis: Paper Jam)" value="${issueVal}" required class="svc-item-issue px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-medium">
+                    <input type="text" placeholder="Barang (mis: Printer)" value="${nameVal}" required class="svc-item-name px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-medium">
+                    <input type="text" placeholder="Kendala (mis: Rusak)" value="${issueVal}" required class="svc-item-issue px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-medium">
                 </div>
-                <button type="button" onclick="this.closest('.service-item-row').remove()" class="w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-100 flex items-center justify-center flex-shrink-0" title="Hapus Barang">
-                    <i class="fa-solid fa-trash-can text-xs"></i>
-                </button>
+                <button type="button" onclick="this.closest('.service-item-row').remove()" class="w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-trash-can text-xs"></i></button>
             `;
             container.appendChild(rowDiv);
         }
 
-        function saveServiceForm(e, editId) {
+        async function saveServiceForm(e, editId) {
             e.preventDefault();
             const id = document.getElementById('svcId').value;
             const customerName = document.getElementById('svcCustomer').value;
@@ -1207,54 +1132,61 @@
             itemRows.forEach(row => {
                 const name = row.querySelector('.svc-item-name').value;
                 const issue = row.querySelector('.svc-item-issue').value;
-                if (name && issue) {
-                    items.push({ name, issue });
-                }
+                if (name && issue) items.push({ name, issue });
             });
 
             if (items.length === 0) {
-                showToast('Harap isi minimal 1 barang service & kendala!', 'error');
+                showToast('Harap isi minimal 1 barang service!', 'error');
                 return;
             }
 
-            if (editId) {
-                const idx = appData.services.findIndex(s => s.id === editId);
-                if (idx !== -1) {
-                    appData.services[idx] = {
-                        ...appData.services[idx],
-                        customerName, room, notes, estimatedPrice, items
-                    };
+            const payload = {
+                id, date: new Date().toISOString().split('T')[0],
+                customer_name: customerName, room, notes,
+                estimated_price: estimatedPrice, progress: 0, items
+            };
+
+            if (supabase) {
+                if (editId) {
+                    await supabase.from('services').update(payload).eq('id', editId);
+                } else {
+                    await supabase.from('services').insert([payload]);
                 }
+                await loadSupabaseData();
             } else {
-                appData.services.unshift({
-                    id,
-                    date: new Date().toISOString().split('T')[0],
-                    customerName, room, notes, estimatedPrice,
-                    progress: 0,
-                    items
-                });
+                if (editId) {
+                    const idx = appData.services.findIndex(s => s.id === editId);
+                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], customerName, room, notes, estimatedPrice, items };
+                } else {
+                    appData.services.unshift({ id, date: payload.date, customerName, room, notes, estimatedPrice, progress: 0, items });
+                }
+                renderApp();
             }
 
-            saveData();
             closeModal();
-            renderApp();
             showToast('Data service berhasil disimpan!', 'success');
         }
 
-        function updateServiceStatus(id, newStatusIdx) {
-            const idx = appData.services.findIndex(s => s.id === id);
-            if (idx !== -1) {
-                appData.services[idx].progress = parseInt(newStatusIdx);
-                saveData();
-                showToast(`Status ${id} diperbarui!`, 'success');
+        async function updateServiceStatus(id, newStatusIdx) {
+            if (supabase) {
+                await supabase.from('services').update({ progress: parseInt(newStatusIdx) }).eq('id', id);
+                await loadSupabaseData();
+            } else {
+                const idx = appData.services.findIndex(s => s.id === id);
+                if (idx !== -1) appData.services[idx].progress = parseInt(newStatusIdx);
             }
+            showToast(`Status ${id} diperbarui!`, 'success');
         }
 
-        function deleteService(id) {
+        async function deleteService(id) {
             if (confirm(`Yakin ingin menghapus service ${id}?`)) {
-                appData.services = appData.services.filter(s => s.id !== id);
-                saveData();
-                renderApp();
+                if (supabase) {
+                    await supabase.from('services').delete().eq('id', id);
+                    await loadSupabaseData();
+                } else {
+                    appData.services = appData.services.filter(s => s.id !== id);
+                    renderApp();
+                }
                 showToast('Data service berhasil dihapus.', 'info');
             }
         }
@@ -1262,50 +1194,15 @@
         function viewServiceDetail(id) {
             const item = appData.services.find(s => s.id === id);
             if (!item) return;
-
-            const contentHtml = `
-                <div class="p-6 space-y-4">
-                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                        <div>
-                            <span class="text-xs font-mono font-bold text-amber-600">${item.id}</span>
-                            <h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3>
-                        </div>
-                        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-                    </div>
-
-                    ${renderCustomerServiceDetails(item)}
-                </div>
-            `;
-            openModal(contentHtml);
+            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item)}</div>`);
         }
 
-        function shareWAService(id) {
-            const item = appData.services.find(s => s.id === id);
-            if (!item) return;
-
-            const textMsg = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
-                `Berikut konfirmasi update layanan service di *DCC Center*:\n` +
-                `------------------------------------\n` +
-                `📌 *Kode Unik ID:* ${item.id}\n` +
-                `📅 *Tanggal Masuk:* ${item.date}\n` +
-                `📦 *Jumlah Barang:* ${item.items.length} Item\n` +
-                `💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n` +
-                `🔄 *Status Terkini:* ${SERVICE_STAGES[item.progress].title}\n` +
-                `------------------------------------\n` +
-                `Anda dapat memantau status pengerjaan secara real-time melalui website aplikasi kami dengan memasukkan Kode Unik ID di atas.\n\n` +
-                `Terima kasih telah memercayakan perbaikan perangkat kepada Bendahara DCC! 🙏`;
-
-            const encoded = encodeURIComponent(textMsg);
-            window.open(`https://wa.me/?text=${encoded}`, '_blank');
-        }
-
-        // ------------------------------------------
-        // TAB 4: RIWAYAT (SPLIT VIEW FILTERED)
-        // ------------------------------------------
+        // ==========================================
+        // RIWAYAT & REKAPAN TABS
+        // ==========================================
         function renderTabRiwayat() {
             return `
-                <div class="space-y-6">
-                    <!-- Filters Panel -->
+                <div class="space-y-6 fade-in">
                     <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                             <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cari Nama / Kode / Kamar</label>
@@ -1321,28 +1218,21 @@
                         </div>
                     </div>
 
-                    <!-- 2 Column Split View -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Left: Riwayat Service -->
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
                             <h3 class="font-bold text-slate-800 text-xs pb-3 border-b border-slate-100 flex items-center justify-between">
                                 <span class="flex items-center gap-2"><i class="fa-solid fa-wrench text-amber-500"></i> Riwayat Service</span>
                                 <span id="countSvcRiwayat" class="text-xs font-bold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full border border-amber-100 font-mono">0</span>
                             </h3>
-
-                            <div id="riwayatServiceList" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                            </div>
+                            <div id="riwayatServiceList" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
                         </div>
 
-                        <!-- Right: Riwayat Pemesanan -->
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
                             <h3 class="font-bold text-slate-800 text-xs pb-3 border-b border-slate-100 flex items-center justify-between">
                                 <span class="flex items-center gap-2"><i class="fa-solid fa-cart-shopping text-blue-600"></i> Riwayat Pemesanan</span>
                                 <span id="countOrdRiwayat" class="text-xs font-bold bg-blue-50 text-blue-800 px-2.5 py-0.5 rounded-full border border-blue-100 font-mono">0</span>
                             </h3>
-
-                            <div id="riwayatOrderList" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                            </div>
+                            <div id="riwayatOrderList" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
                         </div>
                     </div>
                 </div>
@@ -1355,14 +1245,10 @@
             const dateTo = document.getElementById('filterRiwayatDateTo')?.value || '';
 
             const filterFn = (item) => {
-                const matchKw = item.id.toLowerCase().includes(keyword) ||
-                                item.customerName.toLowerCase().includes(keyword) ||
-                                item.room.toLowerCase().includes(keyword);
-                
+                const matchKw = item.id.toLowerCase().includes(keyword) || item.customerName.toLowerCase().includes(keyword) || item.room.toLowerCase().includes(keyword);
                 let matchDate = true;
                 if (dateFrom && item.date < dateFrom) matchDate = false;
                 if (dateTo && item.date > dateTo) matchDate = false;
-
                 return matchKw && matchDate;
             };
 
@@ -1370,98 +1256,63 @@
             const filteredOrders = appData.orders.filter(filterFn);
 
             const svcContainer = document.getElementById('riwayatServiceList');
-            const svcCount = document.getElementById('countSvcRiwayat');
-            if (svcCount) svcCount.innerText = `${filteredServices.length} Rekord`;
-
             if (svcContainer) {
-                if (filteredServices.length === 0) {
-                    svcContainer.innerHTML = `<p class="text-center text-xs text-slate-400 py-6">Tidak ada riwayat service ditemukan.</p>`;
-                } else {
-                    svcContainer.innerHTML = filteredServices.map(s => `
-                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center">
-                            <div>
-                                <span class="font-mono font-bold text-amber-600">${s.id}</span>
-                                <p class="font-bold text-slate-800 mt-0.5">${s.customerName} (${s.room})</p>
-                                <p class="text-[10px] text-slate-400">${s.date} &bull; ${s.items.length} Item</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">${SERVICE_STAGES[s.progress].title}</span>
-                                <p class="font-mono font-bold text-slate-700 mt-1">${formatRupiah(s.estimatedPrice)}</p>
-                            </div>
+                svcContainer.innerHTML = filteredServices.length ? filteredServices.map(s => `
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center">
+                        <div>
+                            <span class="font-mono font-bold text-amber-600">${s.id}</span>
+                            <p class="font-bold text-slate-800 mt-0.5">${s.customerName} (${s.room})</p>
                         </div>
-                    `).join('');
-                }
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">${SERVICE_STAGES[s.progress].title}</span>
+                            <p class="font-mono font-bold text-slate-700 mt-1">${formatRupiah(s.estimatedPrice)}</p>
+                        </div>
+                    </div>
+                `).join('') : `<p class="text-center text-xs text-slate-400 py-6">Tidak ada riwayat.</p>`;
             }
 
             const ordContainer = document.getElementById('riwayatOrderList');
-            const ordCount = document.getElementById('countOrdRiwayat');
-            if (ordCount) ordCount.innerText = `${filteredOrders.length} Rekord`;
-
             if (ordContainer) {
-                if (filteredOrders.length === 0) {
-                    ordContainer.innerHTML = `<p class="text-center text-xs text-slate-400 py-6">Tidak ada riwayat pemesanan ditemukan.</p>`;
-                } else {
-                    ordContainer.innerHTML = filteredOrders.map(o => `
-                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center">
-                            <div>
-                                <span class="font-mono font-bold text-blue-700">${o.id}</span>
-                                <p class="font-bold text-slate-800 mt-0.5">${o.customerName} (${o.room})</p>
-                                <p class="text-[10px] text-slate-400">${o.date} &bull; ${o.orderType}</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">${ORDER_STAGES[o.progress].title}</span>
-                                <p class="font-mono font-bold text-slate-700 mt-1">${formatRupiah(o.estimatedPrice)}</p>
-                            </div>
+                ordContainer.innerHTML = filteredOrders.length ? filteredOrders.map(o => `
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex justify-between items-center">
+                        <div>
+                            <span class="font-mono font-bold text-blue-700">${o.id}</span>
+                            <p class="font-bold text-slate-800 mt-0.5">${o.customerName} (${o.room})</p>
                         </div>
-                    `).join('');
-                }
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">${ORDER_STAGES[o.progress].title}</span>
+                            <p class="font-mono font-bold text-slate-700 mt-1">${formatRupiah(o.estimatedPrice)}</p>
+                        </div>
+                    </div>
+                `).join('') : `<p class="text-center text-xs text-slate-400 py-6">Tidak ada riwayat.</p>`;
             }
         }
 
-        // ------------------------------------------
-        // TAB 5: REKAPAN (FINANCIAL CHARTS)
-        // ------------------------------------------
         function renderTabRekapan() {
             const totalSvcIncome = appData.services.reduce((a, b) => a + (b.estimatedPrice || 0), 0);
             const totalOrdIncome = appData.orders.reduce((a, b) => a + (b.estimatedPrice || 0), 0);
 
             return `
-                <div class="space-y-6">
-                    <!-- Top Summary Income Banner -->
+                <div class="space-y-6 fade-in">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="bg-amber-500 text-white p-6 rounded-2xl shadow-md">
                             <span class="text-xs uppercase font-bold text-amber-100 tracking-wider">Rekapan Uang Service</span>
                             <h2 class="text-2xl sm:text-3xl font-extrabold font-mono mt-1">${formatRupiah(totalSvcIncome)}</h2>
-                            <p class="text-xs text-amber-100 mt-2 font-medium"><i class="fa-solid fa-circle-check mr-1"></i>Total akumulasi dari ${appData.services.length} unit service</p>
                         </div>
-
                         <div class="bg-[#0058c4] text-white p-6 rounded-2xl shadow-md">
                             <span class="text-xs uppercase font-bold text-blue-100 tracking-wider">Rekapan Uang Pemesanan</span>
                             <h2 class="text-2xl sm:text-3xl font-extrabold font-mono mt-1">${formatRupiah(totalOrdIncome)}</h2>
-                            <p class="text-xs text-blue-100 mt-2 font-medium"><i class="fa-solid fa-circle-check mr-1"></i>Total akumulasi dari ${appData.orders.length} unit pengadaan</p>
                         </div>
                     </div>
 
-                    <!-- Line Charts Section -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Chart Left: Service -->
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                            <h3 class="font-bold text-slate-800 text-xs flex items-center gap-2">
-                                <i class="fa-solid fa-chart-line text-amber-500"></i> Diagram Peningkatan Uang Service
-                            </h3>
-                            <div class="h-64 relative">
-                                <canvas id="chartServiceIncome"></canvas>
-                            </div>
+                            <h3 class="font-bold text-slate-800 text-xs flex items-center gap-2"><i class="fa-solid fa-chart-line text-amber-500"></i> Diagram Peningkatan Uang Service</h3>
+                            <div class="h-64 relative"><canvas id="chartServiceIncome"></canvas></div>
                         </div>
-
-                        <!-- Chart Right: Order -->
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                            <h3 class="font-bold text-slate-800 text-xs flex items-center gap-2">
-                                <i class="fa-solid fa-chart-line text-blue-600"></i> Diagram Peningkatan Uang Pemesanan
-                            </h3>
-                            <div class="h-64 relative">
-                                <canvas id="chartOrderIncome"></canvas>
-                            </div>
+                            <h3 class="font-bold text-slate-800 text-xs flex items-center gap-2"><i class="fa-solid fa-chart-line text-blue-600"></i> Diagram Peningkatan Uang Pemesanan</h3>
+                            <div class="h-64 relative"><canvas id="chartOrderIncome"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -1469,42 +1320,15 @@
         }
 
         function initRekapanCharts() {
-            const aggregateByDate = (itemsList) => {
-                const map = {};
-                itemsList.forEach(item => {
-                    const d = item.date || '2026-10-25';
-                    map[d] = (map[d] || 0) + (item.estimatedPrice || 0);
-                });
-                const dates = Object.keys(map).sort();
-                const values = dates.map(d => map[d]);
-                return { dates, values };
-            };
-
-            const svcAgg = aggregateByDate(appData.services);
-            const ordAgg = aggregateByDate(appData.orders);
-
             const ctxSvc = document.getElementById('chartServiceIncome');
             if (ctxSvc) {
                 new Chart(ctxSvc, {
                     type: 'line',
                     data: {
-                        labels: svcAgg.dates.length ? svcAgg.dates : ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28'],
-                        datasets: [{
-                            label: 'Pemasukan Service (Rp)',
-                            data: svcAgg.values.length ? svcAgg.values : [100000, 350000, 200000, 150000],
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            borderWidth: 3
-                        }]
+                        labels: ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28'],
+                        datasets: [{ label: 'Pemasukan Service (Rp)', data: [100000, 350000, 200000, 150000], borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.4 }]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { y: { beginAtZero: true } }
-                    }
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             }
 
@@ -1513,81 +1337,49 @@
                 new Chart(ctxOrd, {
                     type: 'line',
                     data: {
-                        labels: ordAgg.dates.length ? ordAgg.dates : ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28'],
-                        datasets: [{
-                            label: 'Pemasukan Pemesanan (Rp)',
-                            data: ordAgg.values.length ? ordAgg.values : [18500000, 5000000, 7200000, 12000000],
-                            borderColor: '#0058c4',
-                            backgroundColor: 'rgba(0, 88, 196, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            borderWidth: 3
-                        }]
+                        labels: ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28'],
+                        datasets: [{ label: 'Pemasukan Pemesanan (Rp)', data: [18500000, 5000000, 7200000, 12000000], borderColor: '#0058c4', backgroundColor: 'rgba(0, 88, 196, 0.1)', fill: true, tension: 0.4 }]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { y: { beginAtZero: true } }
-                    }
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             }
         }
 
         // ==========================================
-        // EVENT LISTENERS & ROUTING
+        // EVENTS ATTACHMENT
         // ==========================================
         function attachCustomerEvents() {
-            // Secret Admin Trigger Button & Modal (Matching Screenshot Bendahara DCC Modal)
             const secretBtn = document.getElementById('secretAdminBtn');
             if (secretBtn) {
                 secretBtn.addEventListener('click', () => {
                     const contentHtml = `
-                        <div class="p-8 space-y-6 text-center">
-                            <!-- Rounded User Icon Badge from Screenshot -->
-                            <div class="w-16 h-16 bg-blue-100 text-[#0058c4] rounded-2xl flex items-center justify-center text-2xl font-bold mx-auto">
-                                <i class="fa-solid fa-user-tie"></i>
-                            </div>
-                            
+                        <div class="p-8 space-y-6 text-center fade-in">
+                            <img src="DCSC.png" alt="DCC Store" class="w-16 h-16 rounded-2xl bg-blue-50 p-2 mx-auto border border-blue-100 object-contain shadow-sm">
                             <div>
-                                <h3 class="font-extrabold text-slate-900 text-xl tracking-tight">Bendahara DCC</h3>
+                                <h3 class="font-extrabold text-slate-900 text-xl tracking-tight">DCC Store Admin</h3>
                                 <p class="text-xs text-slate-400 mt-1">Masukkan Password Akses Keuangan Sektor</p>
                             </div>
 
                             <form id="adminLoginForm" class="space-y-4 text-left">
                                 <div>
                                     <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">PASSWORD</label>
-                                    <div class="relative">
-                                        <i class="fa-solid fa-key absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                                        <input type="password" id="adminPasswordInput" placeholder="Masukkan password" required 
-                                            class="w-full pl-10 pr-4 py-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
-                                    </div>
+                                    <input type="password" id="adminPasswordInput" placeholder="Masukkan password" required class="w-full px-4 py-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
                                 </div>
-                                
-                                <button type="submit" class="w-full py-3 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
-                                    <span>Masuk ke Sistem</span>
-                                    <i class="fa-solid fa-arrow-right"></i>
-                                </button>
+                                <button type="submit" class="w-full py-3 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">Masuk ke Sistem</button>
                             </form>
-
-                            <p class="text-[10px] text-slate-400 pt-2 border-t border-slate-100">
-                                Akses Khusus Bendahara &bull; Realtime Cloud Sync
-                            </p>
                         </div>
                     `;
                     openModal(contentHtml);
 
                     document.getElementById('adminLoginForm').addEventListener('submit', (e) => {
                         e.preventDefault();
-                        const pwd = document.getElementById('adminPasswordInput').value;
-                        if (pwd === 'staffdcc2.2') {
+                        if (document.getElementById('adminPasswordInput').value === 'staffdcc2.2') {
                             appData.currentRole = 'admin';
-                            appData.activeTab = 'beranda';
                             closeModal();
                             renderApp();
-                            showToast('Selamat datang, Admin Bendahara DCC!', 'success');
+                            showToast('Selamat datang, Admin DCC Store!', 'success');
                         } else {
-                            showToast('Kata sandi salah! Akses ditolak.', 'error');
+                            showToast('Kata sandi salah!', 'error');
                         }
                     });
                 });
@@ -1598,17 +1390,12 @@
                 lookupForm.addEventListener('submit', (e) => {
                     e.preventDefault();
                     const code = document.getElementById('customerCodeInput').value.trim().toUpperCase();
-                    
-                    let found = appData.orders.find(o => o.id.toUpperCase() === code);
-                    if (!found) {
-                        found = appData.services.find(s => s.id.toUpperCase() === code);
-                    }
-
+                    let found = appData.orders.find(o => o.id.toUpperCase() === code) || appData.services.find(s => s.id.toUpperCase() === code);
                     if (found) {
                         appData.customerActiveRecord = found;
                         renderApp();
                     } else {
-                        showToast('Kode Unik Tidak Ditemukan / Sudah Kadaluarsa.', 'error');
+                        showToast('Kode Unik Tidak Ditemukan.', 'error');
                     }
                 });
             }
@@ -1629,17 +1416,15 @@
                     appData.currentRole = 'customer';
                     appData.customerActiveRecord = null;
                     renderApp();
-                    showToast('Berhasil keluar dari panel Admin.', 'info');
+                    showToast('Berhasil keluar dari Admin.', 'info');
                 });
-            }
-
-            if (appData.activeTab === 'riwayat') {
-                setTimeout(applyRiwayatFilter, 50);
             }
         }
 
         window.onload = function() {
             renderApp();
+            loadSupabaseData();
+            initRealtimeSubscription();
         };
     </script>
 </body>
