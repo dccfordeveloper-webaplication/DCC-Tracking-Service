@@ -111,32 +111,40 @@
 
         const DEFAULT_ORDERS = [
             {
-                id: 'ORD-7821',
-                date: '2026-10-25',
-                customerName: 'Ahmad Fauzi',
-                room: 'Lab Komputer 2 / Gedung B',
-                orderType: 'PC Rendering High-End',
-                estimatedPrice: 18500000,
-                progress: 2,
-                excelData: [
-                    { component: 'Processor', spec: 'Intel Core i7-13700K', qty: 1, price: 6200000 },
-                    { component: 'Motherboard', spec: 'ASUS ROG Strix Z790-F', qty: 1, price: 4800000 }
-                ]
+                id: 'ORD-2943',
+                date: '2026-10-28',
+                customerName: 'Ali',
+                room: 'SARPRAS UNIDA',
+                orderType: 'PC Full Set',
+                estimatedPrice: 10394000,
+                progress: 0,
+                excelData: []
+            },
+            {
+                id: 'ORD-7297',
+                date: '2026-10-28',
+                customerName: 'Rajief',
+                room: 'SEKPIM',
+                orderType: 'PC Full Set',
+                estimatedPrice: 10861000,
+                progress: 4,
+                excelData: []
             }
         ];
 
         const DEFAULT_SERVICES = [
             {
-                id: 'SVC-4102',
-                date: '2026-10-26',
-                customerName: 'Budi Santoso',
-                room: 'Keuangan / Lt. 2',
-                kelengkapan: 'Unit & charger',
-                notes: 'Mohon dibantu instal ulang software akuntansi.',
+                id: 'SVC-4638',
+                date: '2026-10-28',
+                customerName: 'Krisna',
+                room: 'Penggemukan Sapi',
+                kelengkapan: 'Unit & kabel power',
+                notes: 'Perbaikan sistem',
                 estimatedPrice: 350000,
                 progress: 1,
                 items: [
-                    { name: 'Printer Epson L3110', issue: 'Hasil cetak garis-garis & paper jam' }
+                    { name: 'Komputer', issue: 'Lemot dan nglag' },
+                    { name: 'Monitor', issue: 'Ngeglitch' }
                 ]
             }
         ];
@@ -212,6 +220,10 @@
 
         function generateUniqueId(prefix) {
             return `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+        }
+
+        function getTodayDateString() {
+            return new Date().toISOString().split('T')[0];
         }
 
         function showToast(message, type = 'info') {
@@ -310,7 +322,7 @@
                         <i class="fa-solid fa-magnifying-glass-location"></i>
                     </div>
                     <h2 class="text-2xl font-bold mb-1 text-slate-900">Lacak Status Pesanan / Service</h2>
-                    <p class="text-slate-500 text-xs mb-6 max-w-md mx-auto">Masukkan Kode Unik Transaksi (contoh: <span class="text-blue-600 font-mono font-bold">ORD-7821</span> atau <span class="text-blue-600 font-mono font-bold">SVC-4102</span>) untuk memantau pengerjaan.</p>
+                    <p class="text-slate-500 text-xs mb-6 max-w-md mx-auto">Masukkan Kode Transaksi (contoh: <span class="text-blue-600 font-mono font-bold">ORD-2943</span> atau <span class="text-blue-600 font-mono font-bold">SVC-4638</span>) untuk memantau pengerjaan.</p>
 
                     <form id="customerLookupForm" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
                         <input type="text" id="customerCodeInput" placeholder="Masukkan kode transaksi..." required 
@@ -424,7 +436,7 @@
                     </div>
 
                     <div class="flex justify-between items-center p-4 bg-[#003b87] text-white rounded-2xl shadow-sm">
-                        <span class="text-xs font-semibold text-blue-200">Total Estimasi Anggaran</span>
+                        <span class="text-xs font-semibold text-blue-200">Total Estimasi Harga</span>
                         <span class="text-lg font-bold font-mono text-amber-300">${formatRupiah(record.estimatedPrice)}</span>
                     </div>
                 </div>
@@ -609,13 +621,13 @@
                             <table class="w-full text-left text-xs" id="orderTable">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
-                                        <th class="p-3.5">Kode Unik</th>
+                                        <th class="p-3.5">Kode Transaksi</th>
                                         <th class="p-3.5">Tgl Masuk</th>
-                                        <th class="p-3.5">Nama Pemesan</th>
+                                        <th class="p-3.5">Nama Pelanggan</th>
                                         <th class="p-3.5">Kamar / Bagian</th>
                                         <th class="p-3.5">Jenis Pesanan</th>
                                         <th class="p-3.5">Progres</th>
-                                        <th class="p-3.5 text-right">Estimasi Biaya</th>
+                                        <th class="p-3.5 text-right">Estimasi Harga</th>
                                         <th class="p-3.5 text-center">Aksi</th>
                                     </tr>
                                 </thead>
@@ -689,9 +701,9 @@
                             <table class="w-full text-left text-xs" id="serviceTable">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
-                                        <th class="p-3.5">Kode Unik</th>
+                                        <th class="p-3.5">Kode Transaksi</th>
                                         <th class="p-3.5">Tgl Masuk</th>
-                                        <th class="p-3.5">Nama Customer</th>
+                                        <th class="p-3.5">Nama Pelanggan</th>
                                         <th class="p-3.5">Kamar / Bagian</th>
                                         <th class="p-3.5 text-center">Jml Barang</th>
                                         <th class="p-3.5">Progres</th>
@@ -765,13 +777,13 @@
                 messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
                     `Berikut konfirmasi rincian rancangan pemesanan unit di *DCC Store*:\n` +
                     `------------------------------------\n` +
-                    `📌 *Kode Unik ID:* ${item.id}\n` +
+                    `📌 *Kode Transaksi:* ${item.id}\n` +
                     `📅 *Tanggal Masuk:* ${item.date}\n` +
                     `🖥️ *Jenis Pesanan:* ${item.orderType}\n` +
-                    `💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n` +
+                    `💰 *Estimasi Harga:* ${formatRupiah(item.estimatedPrice)}\n` +
                     `🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n` +
                     `------------------------------------\n` +
-                    `Anda dapat memantau progres pesanan secara real-time melalui website kami dengan memasukkan kode unik di atas:\n` +
+                    `Anda dapat memantau progres pesanan secara real-time melalui website kami dengan memasukkan kode transaksi di atas:\n` +
                     `https://tracking-service-dcc.vercel.app/\n\n` +
                     `Terima kasih telah memercayakan kebutuhan IT Anda kepada DCC Store! 🙏`;
             } else {
@@ -779,7 +791,6 @@
                 if (!item) return;
                 const unitList = item.items ? item.items.map(i => `${i.name} (${i.issue})`).join(', ') : '-';
                 
-                // Template Service sesuai permintaan dengan Status Terkini & Link Aplikasi
                 messageText = `Assalamualaikum👋 dengan CP Darussalam Computer Center 😊\n\n` +
                     `Barang antum sudah kami terima dengan rincian berikut :\n` +
                     `*- No. Antrean :* ${item.id}\n` +
@@ -836,6 +847,7 @@
             const isEdit = !!orderId;
             const record = isEdit ? appData.orders.find(o => o.id === orderId) : null;
             const newId = isEdit ? record.id : generateUniqueId('ORD');
+            const newDate = isEdit ? record.date : getTodayDateString();
 
             openModal(`
                 <div class="p-6 sm:p-8 space-y-5 fade-in">
@@ -844,13 +856,17 @@
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <form id="orderForm" onsubmit="saveOrderForm(event, '${isEdit ? record.id : ''}')" class="space-y-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Kode Unik</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Kode Transaksi</label>
                                 <input type="text" id="ordId" value="${newId}" readonly class="w-full px-3.5 py-2.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-blue-700">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pemesan</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Tanggal Masuk</label>
+                                <input type="date" id="ordDate" value="${newDate}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none font-medium text-slate-700">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pelanggan</label>
                                 <input type="text" id="ordCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
@@ -945,7 +961,7 @@
             e.preventDefault();
             const payload = {
                 id: document.getElementById('ordId').value,
-                date: new Date().toISOString().split('T')[0],
+                date: document.getElementById('ordDate').value || getTodayDateString(),
                 customer_name: document.getElementById('ordCustomer').value,
                 room: document.getElementById('ordRoom').value,
                 order_type: document.getElementById('ordType').value,
@@ -964,7 +980,7 @@
             } else {
                 if (editId) {
                     const idx = appData.orders.findIndex(o => o.id === editId);
-                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], customerName: payload.customer_name, room: payload.room, orderType: payload.order_type, estimatedPrice: payload.estimated_price, excelData: payload.excel_data };
+                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, orderType: payload.order_type, estimatedPrice: payload.estimated_price, excelData: payload.excel_data };
                 } else {
                     appData.orders.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, orderType: payload.order_type, estimatedPrice: payload.estimated_price, progress: 0, excelData: payload.excel_data });
                 }
@@ -1008,6 +1024,7 @@
             const isEdit = !!serviceId;
             const record = isEdit ? appData.services.find(s => s.id === serviceId) : null;
             const newId = isEdit ? record.id : generateUniqueId('SVC');
+            const newDate = isEdit ? record.date : getTodayDateString();
 
             openModal(`
                 <div class="p-6 sm:p-8 space-y-5 fade-in">
@@ -1016,13 +1033,17 @@
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <form id="serviceForm" onsubmit="saveServiceForm(event, '${isEdit ? record.id : ''}')" class="space-y-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Kode Unik ID</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Kode Transaksi</label>
                                 <input type="text" id="svcId" value="${newId}" readonly class="w-full px-3.5 py-2.5 text-xs bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-amber-600">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Customer</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Tanggal Masuk</label>
+                                <input type="date" id="svcDate" value="${newDate}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none font-medium text-slate-700">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pelanggan</label>
                                 <input type="text" id="svcCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
@@ -1098,7 +1119,7 @@
 
             const payload = {
                 id: document.getElementById('svcId').value,
-                date: new Date().toISOString().split('T')[0],
+                date: document.getElementById('svcDate').value || getTodayDateString(),
                 customer_name: document.getElementById('svcCustomer').value,
                 room: document.getElementById('svcRoom').value,
                 kelengkapan: document.getElementById('svcKelengkapan').value,
@@ -1118,7 +1139,7 @@
             } else {
                 if (editId) {
                     const idx = appData.services.findIndex(s => s.id === editId);
-                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], customerName: payload.customer_name, room: payload.room, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
+                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
                 } else {
                     appData.services.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, progress: 0, items: payload.items });
                 }
@@ -1214,6 +1235,13 @@
             const filteredServices = appData.services.filter(filterFn);
             const filteredOrders = appData.orders.filter(filterFn);
 
+            // Update Counter Badges
+            const countSvcEl = document.getElementById('countSvcRiwayat');
+            if (countSvcEl) countSvcEl.textContent = filteredServices.length;
+
+            const countOrdEl = document.getElementById('countOrdRiwayat');
+            if (countOrdEl) countOrdEl.textContent = filteredOrders.length;
+
             const svcContainer = document.getElementById('riwayatServiceList');
             if (svcContainer) {
                 svcContainer.innerHTML = filteredServices.length ? filteredServices.map(s => `
@@ -1277,7 +1305,6 @@
             `;
         }
 
-        // Grafik Rekapan dihitung otomatis berdasarkan data aktual tanggal transaksi
         function initRekapanCharts() {
             const serviceMap = {};
             appData.services.forEach(item => {
@@ -1406,7 +1433,7 @@
                         appData.customerActiveRecord = found;
                         renderApp();
                     } else {
-                        showToast('Kode Unik Tidak Ditemukan.', 'error');
+                        showToast('Kode Transaksi Tidak Ditemukan.', 'error');
                     }
                 });
             }
