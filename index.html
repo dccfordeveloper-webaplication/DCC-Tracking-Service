@@ -45,20 +45,16 @@
             font-family: 'Plus Jakarta Sans', sans-serif;
             overflow-x: hidden;
         }
-        
         .fade-in {
-            animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: fadeIn 0.3s ease-in-out forwards;
         }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
         .step-active {
             box-shadow: 0 0 20px rgba(255, 107, 0, 0.7);
         }
-
-        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -78,25 +74,28 @@
     <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
 
     <!-- MAIN APP WRAPPER -->
-    <div id="app" class="flex-grow flex flex-col min-h-screen fade-in"></div>
+    <div id="app" class="flex-grow flex flex-col min-h-screen"></div>
 
     <!-- GLOBAL MODAL OVERLAY -->
     <div id="modalOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-40 hidden flex items-center justify-center p-4 transition-opacity duration-300 opacity-0">
         <div id="modalContainer" class="bg-white rounded-[28px] shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 opacity-0">
-            <!-- Modal Content Injected Here -->
         </div>
     </div>
 
     <script>
         // ==========================================
-        // KONFIGURASI SUPABASE (TERHUBUNG)
+        // KONFIGURASI SUPABASE
         // ==========================================
         const SUPABASE_URL = 'https://idaviqvdqnlckjutctgw.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkYXZpcXZkcW5sY2tqdXRjdGd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMDE2ODUsImV4cCI6MjEwODc3NzY4NX0.1q3DgLIlRilPNE5qSZUWXjqKL6ITw7Pi27WNYo9vdgM';
         
-        let supabase = null;
-        if (SUPABASE_URL) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let supabaseClient = null;
+        try {
+            if (window.supabase && SUPABASE_URL) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (e) {
+            console.error("Gagal menginisialisasi Supabase:", e);
         }
 
         // Default local fallback state
@@ -158,42 +157,58 @@
         ];
 
         // ==========================================
-        // SUPABASE REALTIME SYNC ENGINE
+        // SUPABASE DATA SYNC
         // ==========================================
         async function loadSupabaseData() {
-            if (!supabase) return;
+            if (!supabaseClient) return;
             try {
-                const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-                const { data: servicesData } = await supabase.from('services').select('*').order('created_at', { ascending: false });
+                const { data: ordersData, error: ordErr } = await supabaseClient.from('orders').select('*');
+                const { data: servicesData, error: svcErr } = await supabaseClient.from('services').select('*');
 
-                if (ordersData && ordersData.length > 0) {
+                if (!ordErr && ordersData && ordersData.length > 0) {
                     appData.orders = ordersData.map(o => ({
-                        id: o.id, date: o.date, customerName: o.customer_name, room: o.room,
-                        orderType: o.order_type, estimatedPrice: o.estimated_price, progress: o.progress, excelData: o.excel_data
+                        id: o.id, 
+                        date: o.date, 
+                        customerName: o.customer_name, 
+                        room: o.room,
+                        orderType: o.order_type, 
+                        estimatedPrice: o.estimated_price, 
+                        progress: o.progress, 
+                        excelData: o.excel_data || []
                     }));
                 }
-                if (servicesData && servicesData.length > 0) {
+                if (!svcErr && servicesData && servicesData.length > 0) {
                     appData.services = servicesData.map(s => ({
-                        id: s.id, date: s.date, customerName: s.customer_name, room: s.room,
-                        notes: s.notes, estimatedPrice: s.estimated_price, progress: s.progress, items: s.items
+                        id: s.id, 
+                        date: s.date, 
+                        customerName: s.customer_name, 
+                        room: s.room,
+                        notes: s.notes, 
+                        estimatedPrice: s.estimated_price, 
+                        progress: s.progress, 
+                        items: s.items || []
                     }));
                 }
                 renderApp();
             } catch (err) {
-                console.error("Error loading Supabase data:", err);
+                console.error("Gagal sinkronisasi data Supabase:", err);
             }
         }
 
         function initRealtimeSubscription() {
-            if (!supabase) return;
-            supabase.channel('public-db-changes')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadSupabaseData())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => loadSupabaseData())
-                .subscribe();
+            if (!supabaseClient) return;
+            try {
+                supabaseClient.channel('public-db-changes')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadSupabaseData())
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => loadSupabaseData())
+                    .subscribe();
+            } catch (e) {
+                console.error("Realtime subscription error:", e);
+            }
         }
 
         // ==========================================
-        // UTILITIES & HELPER FUNCTIONS
+        // UTILITIES
         // ==========================================
         function formatRupiah(amount) {
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount || 0);
@@ -205,11 +220,12 @@
 
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
+            if (!container) return;
             const toast = document.createElement('div');
             const bgClass = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600';
             const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
             
-            toast.className = `${bgClass} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 transition-all duration-300 transform translate-x-10 opacity-0 pointer-events-auto text-xs font-semibold hover:scale-105`;
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 transition-all duration-300 transform translate-x-10 opacity-0 pointer-events-auto text-xs font-semibold`;
             toast.innerHTML = `<i class="fa-solid ${icon} text-base"></i> <span>${message}</span>`;
             
             container.appendChild(toast);
@@ -224,6 +240,7 @@
         function openModal(contentHtml) {
             const overlay = document.getElementById('modalOverlay');
             const container = document.getElementById('modalContainer');
+            if (!overlay || !container) return;
             container.innerHTML = contentHtml;
             overlay.classList.remove('hidden');
             requestAnimationFrame(() => {
@@ -236,6 +253,7 @@
         function closeModal() {
             const overlay = document.getElementById('modalOverlay');
             const container = document.getElementById('modalContainer');
+            if (!overlay || !container) return;
             container.classList.remove('scale-100', 'opacity-100');
             container.classList.add('scale-95', 'opacity-0');
             overlay.classList.add('opacity-0');
@@ -243,10 +261,12 @@
         }
 
         // ==========================================
-        // RENDER CORE ENGINE
+        // RENDER CORE
         // ==========================================
         function renderApp() {
             const app = document.getElementById('app');
+            if (!app) return;
+            app.className = "flex-grow flex flex-col min-h-screen fade-in";
             if (appData.currentRole === 'customer') {
                 app.innerHTML = renderCustomerView();
                 attachCustomerEvents();
@@ -257,22 +277,18 @@
             }
         }
 
-        // ------------------------------------------
-        // CUSTOMER VIEW
-        // ------------------------------------------
         function renderCustomerView() {
             const record = appData.customerActiveRecord;
             return `
                 <div class="min-h-screen bg-[#00459c] text-white flex flex-col justify-between">
                     <header class="p-6 flex justify-between items-center max-w-5xl mx-auto w-full">
                         <div class="flex items-center gap-3">
-                            <img src="DCSC.png" alt="DCC Store" class="w-10 h-10 rounded-xl bg-white/10 p-1 border border-white/20 shadow-sm object-contain">
+                            <img src="DCSC.png" alt="DCC Store" class="w-10 h-10 rounded-xl bg-white/10 p-1 border border-white/20 shadow-sm object-contain" onerror="this.style.display='none'">
                             <div>
                                 <h1 class="text-xl font-bold tracking-tight">DCC Store</h1>
                                 <p class="text-xs text-blue-200">Sistem Pelacakan Layanan & Service 2.0</p>
                             </div>
                         </div>
-                        
                         <button id="secretAdminBtn" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all duration-300 hover:rotate-12 cursor-pointer shadow-sm border border-white/20" title="Akses Admin Staff">
                             <i class="fa-solid fa-user-shield text-sm"></i>
                         </button>
@@ -293,17 +309,17 @@
 
         function renderCustomerSearchCard() {
             return `
-                <div class="bg-white text-slate-800 p-8 sm:p-10 rounded-[28px] shadow-2xl text-center border border-white/20 transform transition-all hover:scale-[1.01]">
+                <div class="bg-white text-slate-800 p-8 sm:p-10 rounded-[28px] shadow-2xl text-center border border-white/20">
                     <div class="w-16 h-16 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center text-blue-600 text-2xl mx-auto mb-5 shadow-sm">
-                        <i class="fa-solid fa-magnifying-glass-location animate-bounce"></i>
+                        <i class="fa-solid fa-magnifying-glass-location"></i>
                     </div>
                     <h2 class="text-2xl font-bold mb-1 text-slate-900">Lacak Status Pesanan / Service</h2>
                     <p class="text-slate-500 text-xs mb-6 max-w-md mx-auto">Masukkan Kode Unik Transaksi (contoh: <span class="text-blue-600 font-mono font-bold">ORD-7821</span> atau <span class="text-blue-600 font-mono font-bold">SVC-4102</span>) untuk memantau pengerjaan.</p>
 
                     <form id="customerLookupForm" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-                        <input type="text" id="customerCodeInput" placeholder="Masukkan kode transaksi..." required uppercase 
-                            class="flex-grow px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 uppercase tracking-wider font-mono text-center sm:text-left text-sm font-semibold transition-all">
-                        <button type="submit" class="px-6 py-3.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold rounded-2xl transition-all duration-300 hover:shadow-xl flex items-center justify-center gap-2 text-sm">
+                        <input type="text" id="customerCodeInput" placeholder="Masukkan kode transaksi..." required 
+                            class="flex-grow px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 uppercase tracking-wider font-mono text-center sm:text-left text-sm font-semibold">
+                        <button type="submit" class="px-6 py-3.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm shadow-md">
                             <span>Lacak Status</span>
                             <i class="fa-solid fa-arrow-right text-xs"></i>
                         </button>
@@ -323,7 +339,7 @@
             const currentStep = record.progress;
 
             return `
-                <div class="bg-white text-slate-800 rounded-[28px] shadow-2xl overflow-hidden border border-slate-100 fade-in">
+                <div class="bg-white text-slate-800 rounded-[28px] shadow-2xl overflow-hidden border border-slate-100">
                     <div class="bg-[#003b87] text-white p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                             <div class="flex items-center gap-2 mb-1">
@@ -342,14 +358,14 @@
                         <h3 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-6">Indikator Tahap Layanan</h3>
                         <div class="relative flex justify-between items-center max-w-xl mx-auto">
                             <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1.5 bg-slate-200 rounded-full z-0"></div>
-                            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-dcc-accent rounded-full z-0 transition-all duration-700 ease-in-out" style="width: ${(currentStep / (stages.length - 1)) * 100}%"></div>
+                            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-dcc-accent rounded-full z-0 transition-all duration-500" style="width: ${(currentStep / (stages.length - 1)) * 100}%"></div>
 
                             ${stages.map((stage, idx) => {
                                 const isPassed = idx <= currentStep;
                                 const isCurrent = idx === currentStep;
                                 return `
                                     <div class="relative z-10 flex flex-col items-center">
-                                        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-500 ${
+                                        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300 ${
                                             isCurrent ? 'bg-dcc-accent text-white ring-4 ring-orange-200 step-active scale-110' : isPassed ? 'bg-dcc-accent text-white' : 'bg-white text-slate-400 border-2 border-slate-200'
                                         }">
                                             <i class="fa-solid ${stage.icon}"></i>
@@ -400,7 +416,7 @@
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 ${record.excelData && record.excelData.length > 0 ? record.excelData.map(item => `
-                                    <tr class="hover:bg-slate-50 transition-colors">
+                                    <tr class="hover:bg-slate-50">
                                         <td class="p-3 font-semibold text-slate-800">${item.component}</td>
                                         <td class="p-3 text-slate-600">${item.spec}</td>
                                         <td class="p-3 text-center font-medium">${item.qty}</td>
@@ -448,15 +464,15 @@
         }
 
         // ------------------------------------------
-        // ADMIN DASHBOARD & BRANDING DCC STORE
+        // ADMIN DASHBOARD
         // ------------------------------------------
         function renderAdminView() {
             return `
-                <div class="min-h-screen bg-[#00459c] text-white flex flex-col fade-in">
-                    <header class="bg-[#003b87] text-white sticky top-0 z-30 shadow-lg border-b border-white/10 backdrop-blur-md bg-opacity-95">
+                <div class="min-h-screen bg-[#00459c] text-white flex flex-col">
+                    <header class="bg-[#003b87] text-white sticky top-0 z-30 shadow-lg border-b border-white/10">
                         <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div class="flex items-center gap-3">
-                                <img src="DCSC.png" alt="DCC Store Logo" class="w-11 h-11 rounded-full bg-white/10 p-1 border-2 border-blue-300/40 object-contain shadow-inner">
+                                <img src="DCSC.png" alt="DCC Store" class="w-11 h-11 rounded-full bg-white/10 p-1 border-2 border-blue-300/40 object-contain shadow-inner" onerror="this.style.display='none'">
                                 <div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-[11px] font-semibold text-blue-200">Admin Staff</span>
@@ -475,7 +491,7 @@
                                     ${renderNavBtn('rekapan', 'Rekapan', 'fa-chart-line')}
                                 </div>
 
-                                <button id="adminLogoutBtn" class="w-9 h-9 rounded-full bg-white/10 hover:bg-rose-600 text-white flex items-center justify-center transition-all border border-white/20 hover:scale-105" title="Keluar">
+                                <button id="adminLogoutBtn" class="w-9 h-9 rounded-full bg-white/10 hover:bg-rose-600 text-white flex items-center justify-center transition-all border border-white/20" title="Keluar">
                                     <i class="fa-solid fa-right-from-bracket text-xs"></i>
                                 </button>
                             </div>
@@ -483,7 +499,7 @@
                     </header>
 
                     <main class="flex-grow max-w-6xl w-full mx-auto p-4 sm:p-6 my-4">
-                        <div class="bg-slate-50 text-slate-800 rounded-[28px] p-6 sm:p-8 shadow-2xl space-y-6 transition-all">
+                        <div class="bg-slate-50 text-slate-800 rounded-[28px] p-6 sm:p-8 shadow-2xl space-y-6">
                             ${renderAdminTabContent()}
                         </div>
                     </main>
@@ -498,8 +514,8 @@
         function renderNavBtn(tabKey, label, icon) {
             const isActive = appData.activeTab === tabKey;
             return `
-                <button onclick="switchAdminTab('${tabKey}')" class="px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all duration-300 flex items-center gap-1.5 ${
-                    isActive ? 'bg-white text-[#003b87] shadow-md font-bold scale-105' : 'text-blue-100 hover:bg-white/10'
+                <button onclick="switchAdminTab('${tabKey}')" class="px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 ${
+                    isActive ? 'bg-white text-[#003b87] shadow-sm font-bold' : 'text-blue-100 hover:bg-white/10'
                 }">
                     <i class="fa-solid ${icon}"></i> <span class="hidden md:inline">${label}</span>
                 </button>
@@ -530,8 +546,8 @@
             const totalGrandKas = orderIncome + serviceIncome;
 
             return `
-                <div class="space-y-6 fade-in">
-                    <div class="bg-gradient-to-r from-[#003b87] to-[#0058c4] text-white p-6 sm:p-8 rounded-[24px] shadow-xl relative overflow-hidden space-y-4">
+                <div class="space-y-6">
+                    <div class="bg-gradient-to-r from-[#003b87] to-[#0058c4] text-white p-6 sm:p-8 rounded-[24px] shadow-lg relative overflow-hidden space-y-4">
                         <div class="flex justify-between items-center">
                             <span class="text-xs font-medium text-blue-200 tracking-wide uppercase">Total Saldo Kas Akun Aktif</span>
                             <i class="fa-regular fa-eye text-blue-200 text-sm"></i>
@@ -552,7 +568,7 @@
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="bg-blue-50/80 border border-blue-100 p-4 rounded-2xl flex items-center gap-3.5 hover:shadow-md transition-all">
+                        <div class="bg-blue-50/80 border border-blue-100 p-4 rounded-2xl flex items-center gap-3.5">
                             <div class="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg shadow-sm">
                                 <i class="fa-solid fa-cart-shopping"></i>
                             </div>
@@ -562,7 +578,7 @@
                             </div>
                         </div>
 
-                        <div class="bg-emerald-50/80 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3.5 hover:shadow-md transition-all">
+                        <div class="bg-emerald-50/80 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3.5">
                             <div class="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shadow-sm">
                                 <i class="fa-solid fa-wrench"></i>
                             </div>
@@ -572,7 +588,7 @@
                             </div>
                         </div>
 
-                        <div class="bg-amber-50/80 border border-amber-100 p-4 rounded-2xl flex items-center gap-3.5 hover:shadow-md transition-all">
+                        <div class="bg-amber-50/80 border border-amber-100 p-4 rounded-2xl flex items-center gap-3.5">
                             <div class="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-sm">
                                 <i class="fa-solid fa-sack-dollar"></i>
                             </div>
@@ -587,17 +603,17 @@
         }
 
         // ------------------------------------------
-        // TAB 2: PEMESANAN (ORDERS)
+        // TAB PEMESANAN & SERVICE MANAGEMENT
         // ------------------------------------------
         function renderTabPemesanan() {
             return `
-                <div class="space-y-6 fade-in">
+                <div class="space-y-6">
                     <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                         <div class="relative flex-grow max-w-md">
                             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                             <input type="text" id="searchOrderInput" onkeyup="filterOrderTable()" placeholder="Cari Kode ID, Nama, atau Kamar..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium">
                         </div>
-                        <button onclick="openOrderModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 hover:scale-105">
+                        <button onclick="openOrderModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md">
                             <i class="fa-solid fa-plus"></i> + Tambah Pesanan
                         </button>
                     </div>
@@ -629,9 +645,8 @@
 
         function renderOrderRows(ordersList) {
             if (ordersList.length === 0) return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
-
             return ordersList.map(item => `
-                <tr class="hover:bg-slate-50 transition-colors">
+                <tr class="hover:bg-slate-50">
                     <td class="p-3.5 font-mono font-bold text-blue-700">
                         <button onclick="viewOrderDetail('${item.id}')" class="hover:underline flex items-center gap-1">
                             <i class="fa-solid fa-receipt text-slate-400"></i> ${item.id}
@@ -642,14 +657,14 @@
                     <td class="p-3.5 text-slate-600">${item.room}</td>
                     <td class="p-3.5 text-slate-600 font-medium">${item.orderType}</td>
                     <td class="p-3.5">
-                        <select onchange="updateOrderStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        <select onchange="updateOrderStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
                             ${ORDER_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
                         </select>
                     </td>
                     <td class="p-3.5 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
                     <td class="p-3.5">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="openChatModal('order', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all duration-300 flex items-center justify-center hover:scale-110" title="Pratinjau / Salin Chat WA">
+                            <button onclick="openChatModal('order', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center" title="Pratinjau / Salin Chat WA">
                                 <i class="fa-brands fa-whatsapp text-sm"></i>
                             </button>
                             <button onclick="openOrderModal('${item.id}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center" title="Edit">
@@ -666,26 +681,19 @@
 
         function filterOrderTable() {
             const val = document.getElementById('searchOrderInput').value.toLowerCase();
-            const filtered = appData.orders.filter(o => 
-                o.id.toLowerCase().includes(val) || 
-                o.customerName.toLowerCase().includes(val) || 
-                o.room.toLowerCase().includes(val)
-            );
+            const filtered = appData.orders.filter(o => o.id.toLowerCase().includes(val) || o.customerName.toLowerCase().includes(val) || o.room.toLowerCase().includes(val));
             document.getElementById('orderTableBody').innerHTML = renderOrderRows(filtered);
         }
 
-        // ------------------------------------------
-        // TAB 3: SERVICE
-        // ------------------------------------------
         function renderTabService() {
             return `
-                <div class="space-y-6 fade-in">
+                <div class="space-y-6">
                     <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                         <div class="relative flex-grow max-w-md">
                             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                             <input type="text" id="searchServiceInput" onkeyup="filterServiceTable()" placeholder="Cari Kode ID, Nama, atau Kamar..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium">
                         </div>
-                        <button onclick="openServiceModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 hover:scale-105">
+                        <button onclick="openServiceModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md">
                             <i class="fa-solid fa-plus"></i> + Tambah Service
                         </button>
                     </div>
@@ -717,9 +725,8 @@
 
         function renderServiceRows(servicesList) {
             if (servicesList.length === 0) return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data service.</td></tr>`;
-
             return servicesList.map(item => `
-                <tr class="hover:bg-slate-50 transition-colors">
+                <tr class="hover:bg-slate-50">
                     <td class="p-3.5 font-mono font-bold text-amber-600">
                         <button onclick="viewServiceDetail('${item.id}')" class="hover:underline flex items-center gap-1">
                             <i class="fa-solid fa-screwdriver-wrench text-slate-400"></i> ${item.id}
@@ -732,14 +739,14 @@
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px]">${item.items ? item.items.length : 0} Item</span>
                     </td>
                     <td class="p-3.5">
-                        <select onchange="updateServiceStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        <select onchange="updateServiceStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
                             ${SERVICE_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
                         </select>
                     </td>
                     <td class="p-3.5 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
                     <td class="p-3.5">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="openChatModal('service', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all duration-300 flex items-center justify-center hover:scale-110" title="Pratinjau / Salin Chat WA">
+                            <button onclick="openChatModal('service', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center" title="Pratinjau / Salin Chat WA">
                                 <i class="fa-brands fa-whatsapp text-sm"></i>
                             </button>
                             <button onclick="openServiceModal('${item.id}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center" title="Edit">
@@ -756,53 +763,28 @@
 
         function filterServiceTable() {
             const val = document.getElementById('searchServiceInput').value.toLowerCase();
-            const filtered = appData.services.filter(s => 
-                s.id.toLowerCase().includes(val) || 
-                s.customerName.toLowerCase().includes(val) || 
-                s.room.toLowerCase().includes(val)
-            );
+            const filtered = appData.services.filter(s => s.id.toLowerCase().includes(val) || s.customerName.toLowerCase().includes(val) || s.room.toLowerCase().includes(val));
             document.getElementById('serviceTableBody').innerHTML = renderServiceRows(filtered);
         }
 
         // ------------------------------------------
-        // CHAT PREVIEW & COPY MODAL (PENGGANTI DIRECT WA LINK)
+        // CHAT WA PREVIEW & COPY MODAL
         // ------------------------------------------
         function openChatModal(type, id) {
             let item = null;
             let messageText = '';
-
             if (type === 'order') {
                 item = appData.orders.find(o => o.id === id);
                 if (!item) return;
-                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
-                    `Berikut konfirmasi rincian rancangan pemesanan unit di *DCC Store*:\n` +
-                    `------------------------------------\n` +
-                    `📌 *Kode Unik ID:* ${item.id}\n` +
-                    `📅 *Tanggal Masuk:* ${item.date}\n` +
-                    `🖥️ *Jenis Pesanan:* ${item.orderType}\n` +
-                    `💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n` +
-                    `🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n` +
-                    `------------------------------------\n` +
-                    `Anda dapat memantau progres pesanan secara real-time melalui website kami dengan memasukkan Kode Unik ID di atas.\n\n` +
-                    `Terima kasih telah memercayakan kebutuhan IT Anda kepada DCC Store! 🙏`;
+                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\nBerikut konfirmasi rincian rancangan pemesanan unit di *DCC Store*:\n------------------------------------\n📌 *Kode Unik ID:* ${item.id}\n📅 *Tanggal Masuk:* ${item.date}\n🖥️ *Jenis Pesanan:* ${item.orderType}\n💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n------------------------------------\nAnda dapat memantau progres pesanan secara real-time melalui website kami.\n\nTerima kasih telah memercayakan kebutuhan IT Anda kepada DCC Store! 🙏`;
             } else {
                 item = appData.services.find(s => s.id === id);
                 if (!item) return;
-                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
-                    `Berikut konfirmasi update layanan service di *DCC Store*:\n` +
-                    `------------------------------------\n` +
-                    `📌 *Kode Unik ID:* ${item.id}\n` +
-                    `📅 *Tanggal Masuk:* ${item.date}\n` +
-                    `📦 *Jumlah Barang:* ${item.items.length} Item\n` +
-                    `💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n` +
-                    `🔄 *Status Terkini:* ${SERVICE_STAGES[item.progress].title}\n` +
-                    `------------------------------------\n` +
-                    `Anda dapat memantau status pengerjaan secara real-time melalui website kami dengan memasukkan Kode Unik ID di atas.\n\n` +
-                    `Terima kasih telah memercayakan perbaikan perangkat kepada DCC Store! 🙏`;
+                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\nBerikut konfirmasi update layanan service di *DCC Store*:\n------------------------------------\n📌 *Kode Unik ID:* ${item.id}\n📅 *Tanggal Masuk:* ${item.date}\n📦 *Jumlah Barang:* ${item.items.length} Item\n💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n🔄 *Status Terkini:* ${SERVICE_STAGES[item.progress].title}\n------------------------------------\nAnda dapat memantau status pengerjaan secara real-time melalui website kami.\n\nTerima kasih telah memercayakan perbaikan perangkat kepada DCC Store! 🙏`;
             }
 
-            const modalHtml = `
-                <div class="p-6 sm:p-8 space-y-5 fade-in">
+            openModal(`
+                <div class="p-6 sm:p-8 space-y-5">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-4">
                         <div class="flex items-center gap-2">
                             <i class="fa-brands fa-whatsapp text-emerald-600 text-xl"></i>
@@ -810,25 +792,19 @@
                         </div>
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-
                     <div class="space-y-2">
-                        <label class="block text-xs font-bold text-slate-600">Draf Pesan WhatsApp:</label>
-                        <textarea id="chatTextarea" readonly class="w-full h-48 p-3.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-600 outline-none text-slate-800 leading-relaxed">${messageText}</textarea>
+                        <textarea id="chatTextarea" readonly class="w-full h-48 p-3.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-2xl outline-none text-slate-800 leading-relaxed">${messageText}</textarea>
                     </div>
-
-                    <div class="flex flex-col sm:flex-row gap-3 pt-2">
-                        <button onclick="copyChatMessage()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all duration-300 shadow-md flex items-center justify-center gap-2">
-                            <i class="fa-regular fa-copy"></i>
-                            <span>Salin Teks Chat</span>
+                    <div class="flex gap-3 pt-2">
+                        <button onclick="copyChatMessage()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2">
+                            <i class="fa-regular fa-copy"></i> Salin Teks Chat
                         </button>
-                        <button onclick="openWhatsAppDirect('${encodeURIComponent(messageText)}')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all duration-300 shadow-md flex items-center justify-center gap-2">
-                            <i class="fa-brands fa-whatsapp"></i>
-                            <span>Buka WA</span>
+                        <button onclick="window.open('https://wa.me/?text=${encodeURIComponent(messageText)}', '_blank')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2">
+                            <i class="fa-brands fa-whatsapp"></i> Buka WA
                         </button>
                     </div>
                 </div>
-            `;
-            openModal(modalHtml);
+            `);
         }
 
         function copyChatMessage() {
@@ -840,25 +816,20 @@
             }
         }
 
-        function openWhatsAppDirect(encodedMsg) {
-            window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
-        }
-
         // ------------------------------------------
-        // MODALS & ACTIONS CRUD (SUPABASE INTEGRATED)
+        // CRUD MODALS & DATABASE ACTIONS
         // ------------------------------------------
         function openOrderModal(orderId = null) {
             const isEdit = !!orderId;
             const record = isEdit ? appData.orders.find(o => o.id === orderId) : null;
             const newId = isEdit ? record.id : generateUniqueId('ORD');
 
-            const contentHtml = `
-                <div class="p-6 sm:p-8 space-y-5 fade-in">
+            openModal(`
+                <div class="p-6 sm:p-8 space-y-5">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-4">
                         <h3 class="font-bold text-slate-900 text-lg">${isEdit ? 'Edit Data Pemesanan' : 'Tambah Pesanan Baru'}</h3>
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-
                     <form id="orderForm" onsubmit="saveOrderForm(event, '${isEdit ? record.id : ''}')" class="space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -867,58 +838,43 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pemesan</label>
-                                <input type="text" id="ordCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
+                                <input type="text" id="ordCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
-
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian</label>
-                                <input type="text" id="ordRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
+                                <input type="text" id="ordRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Jenis Pesanan</label>
-                                <input type="text" id="ordType" value="${isEdit ? record.orderType : ''}" placeholder="mis: PC Full Set" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
+                                <input type="text" id="ordType" value="${isEdit ? record.orderType : ''}" placeholder="mis: PC Full Set" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
-
                         <div class="space-y-2 border-t border-b border-slate-100 py-4">
-                            <div class="flex justify-between items-center">
-                                <label class="block text-xs font-bold text-blue-900"><i class="fa-solid fa-file-excel text-emerald-600 mr-1"></i> Paste Tabel Rancangan dari Excel</label>
-                            </div>
-                            <textarea id="excelPasteArea" onpaste="handleExcelPaste(event)" placeholder="Tempel (Ctrl+V) tabel spesifikasi Excel di sini..." class="w-full h-20 p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none"></textarea>
-
-                            <div class="mt-2">
-                                <h4 class="text-[11px] font-bold text-slate-500 mb-1">Hasil Konversi Spesifikasi:</h4>
-                                <div class="max-h-36 overflow-y-auto border border-slate-200 rounded-xl">
-                                    <table class="w-full text-left text-[11px]" id="excelPreviewTable">
-                                        <thead class="bg-slate-100 text-slate-600 font-bold uppercase sticky top-0">
-                                            <tr>
-                                                <th class="p-2">Komponen</th>
-                                                <th class="p-2">Spesifikasi</th>
-                                                <th class="p-2 text-center">Qty</th>
-                                                <th class="p-2 text-right">Harga</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="excelPreviewBody" class="divide-y divide-slate-100 font-mono"></tbody>
-                                    </table>
-                                </div>
+                            <label class="block text-xs font-bold text-blue-950"><i class="fa-solid fa-file-excel text-emerald-600 mr-1"></i> Paste Tabel Rancangan dari Excel</label>
+                            <textarea id="excelPasteArea" onpaste="handleExcelPaste(event)" placeholder="Tempel (Ctrl+V) tabel spesifikasi Excel di sini..." class="w-full h-20 p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl outline-none"></textarea>
+                            <div class="max-h-36 overflow-y-auto border border-slate-200 rounded-xl">
+                                <table class="w-full text-left text-[11px]">
+                                    <thead class="bg-slate-100 text-slate-600 font-bold uppercase sticky top-0">
+                                        <tr><th class="p-2">Komponen</th><th class="p-2">Spesifikasi</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Harga</th></tr>
+                                    </thead>
+                                    <tbody id="excelPreviewBody" class="divide-y divide-slate-100 font-mono"></tbody>
+                                </table>
                             </div>
                         </div>
-
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Estimasi Total Harga (Rp)</label>
-                                <input type="number" id="ordPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-600 outline-none">
+                                <input type="number" id="ordPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                             <div class="flex items-end">
-                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">Simpan Pesanan</button>
+                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md">Simpan Pesanan</button>
                             </div>
                         </div>
                     </form>
                 </div>
-            `;
-            openModal(contentHtml);
+            `);
 
             if (isEdit && record.excelData) {
                 window.tempExcelParsed = [...record.excelData];
@@ -933,7 +889,6 @@
             e.preventDefault();
             const clipboardData = (e.clipboardData || window.clipboardData).getData('text');
             if (!clipboardData) return;
-
             const rows = clipboardData.trim().split(/\r\n|\n|\r/);
             const parsedItems = [];
             let calculatedTotal = 0;
@@ -944,9 +899,7 @@
                     const component = cols[0] ? cols[0].trim() : 'Komponen';
                     const spec = cols[1] ? cols[1].trim() : '-';
                     const qty = cols[2] && !isNaN(parseInt(cols[2])) ? parseInt(cols[2]) : 1;
-                    let price = 0;
-                    if (cols[3]) price = parseInt(cols[3].replace(/[^0-9]/g, '')) || 0;
-
+                    let price = cols[3] ? parseInt(cols[3].replace(/[^0-9]/g, '')) || 0 : 0;
                     parsedItems.push({ component, spec, qty, price });
                     calculatedTotal += (qty * price);
                 }
@@ -977,43 +930,40 @@
 
         async function saveOrderForm(e, editId) {
             e.preventDefault();
-            const id = document.getElementById('ordId').value;
-            const customerName = document.getElementById('ordCustomer').value;
-            const room = document.getElementById('ordRoom').value;
-            const orderType = document.getElementById('ordType').value;
-            const estimatedPrice = parseInt(document.getElementById('ordPrice').value) || 0;
-            const excelData = window.tempExcelParsed || [];
-
             const payload = {
-                id, date: new Date().toISOString().split('T')[0],
-                customer_name: customerName, room, order_type: orderType,
-                estimated_price: estimatedPrice, progress: 0, excel_data: excelData
+                id: document.getElementById('ordId').value,
+                date: new Date().toISOString().split('T')[0],
+                customer_name: document.getElementById('ordCustomer').value,
+                room: document.getElementById('ordRoom').value,
+                order_type: document.getElementById('ordType').value,
+                estimated_price: parseInt(document.getElementById('ordPrice').value) || 0,
+                progress: 0,
+                excel_data: window.tempExcelParsed || []
             };
 
-            if (supabase) {
+            if (supabaseClient) {
                 if (editId) {
-                    await supabase.from('orders').update(payload).eq('id', editId);
+                    await supabaseClient.from('orders').update(payload).eq('id', editId);
                 } else {
-                    await supabase.from('orders').insert([payload]);
+                    await supabaseClient.from('orders').insert([payload]);
                 }
                 await loadSupabaseData();
             } else {
                 if (editId) {
                     const idx = appData.orders.findIndex(o => o.id === editId);
-                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], customerName, room, orderType, estimatedPrice, excelData };
+                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], customerName: payload.customer_name, room: payload.room, orderType: payload.order_type, estimatedPrice: payload.estimated_price, excelData: payload.excel_data };
                 } else {
-                    appData.orders.unshift({ id, date: payload.date, customerName, room, orderType, estimatedPrice, progress: 0, excelData });
+                    appData.orders.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, orderType: payload.order_type, estimatedPrice: payload.estimated_price, progress: 0, excelData: payload.excel_data });
                 }
                 renderApp();
             }
-
             closeModal();
             showToast('Data pemesanan berhasil disimpan!', 'success');
         }
 
         async function updateOrderStatus(id, newStatusIdx) {
-            if (supabase) {
-                await supabase.from('orders').update({ progress: parseInt(newStatusIdx) }).eq('id', id);
+            if (supabaseClient) {
+                await supabaseClient.from('orders').update({ progress: parseInt(newStatusIdx) }).eq('id', id);
                 await loadSupabaseData();
             } else {
                 const idx = appData.orders.findIndex(o => o.id === id);
@@ -1024,8 +974,8 @@
 
         async function deleteOrder(id) {
             if (confirm(`Yakin ingin menghapus pesanan ${id}?`)) {
-                if (supabase) {
-                    await supabase.from('orders').delete().eq('id', id);
+                if (supabaseClient) {
+                    await supabaseClient.from('orders').delete().eq('id', id);
                     await loadSupabaseData();
                 } else {
                     appData.orders = appData.orders.filter(o => o.id !== id);
@@ -1038,7 +988,7 @@
         function viewOrderDetail(id) {
             const item = appData.orders.find(o => o.id === id);
             if (!item) return;
-            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-blue-700">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerOrderDetails(item)}</div>`);
+            openModal(`<div class="p-6 space-y-4"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-blue-700">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerOrderDetails(item)}</div>`);
         }
 
         function openServiceModal(serviceId = null) {
@@ -1046,13 +996,12 @@
             const record = isEdit ? appData.services.find(s => s.id === serviceId) : null;
             const newId = isEdit ? record.id : generateUniqueId('SVC');
 
-            const contentHtml = `
-                <div class="p-6 sm:p-8 space-y-5 fade-in">
+            openModal(`
+                <div class="p-6 sm:p-8 space-y-5">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-4">
                         <h3 class="font-bold text-slate-900 text-lg">${isEdit ? 'Edit Data Service' : 'Tambah Service Baru'}</h3>
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-
                     <form id="serviceForm" onsubmit="saveServiceForm(event, '${isEdit ? record.id : ''}')" class="space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -1061,41 +1010,36 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Nama Customer</label>
-                                <input type="text" id="svcCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
+                                <input type="text" id="svcCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
-
                         <div>
                             <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian</label>
-                            <input type="text" id="svcRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
+                            <input type="text" id="svcRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                         </div>
-
                         <div class="space-y-3 border-t border-b border-slate-100 py-4">
                             <div class="flex justify-between items-center">
                                 <label class="block text-xs font-bold text-slate-800"><i class="fa-solid fa-boxes-stacked text-amber-500 mr-1"></i> Barang Service & Kendala</label>
-                                <button type="button" onclick="addServiceItemRow()" class="px-3 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1"><i class="fa-solid fa-plus"></i> Tambah Servican</button>
+                                <button type="button" onclick="addServiceItemRow()" class="px-3 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold rounded-xl flex items-center gap-1"><i class="fa-solid fa-plus"></i> Tambah Servican</button>
                             </div>
                             <div id="serviceItemsContainer" class="space-y-3 max-h-48 overflow-y-auto pr-1"></div>
                         </div>
-
                         <div>
                             <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan</label>
-                            <textarea id="svcNotes" placeholder="Catatan kelengkapan..." class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none h-16 font-medium">${isEdit && record.notes ? record.notes : ''}</textarea>
+                            <textarea id="svcNotes" placeholder="Catatan kelengkapan..." class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none h-16">${isEdit && record.notes ? record.notes : ''}</textarea>
                         </div>
-
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Estimasi Biaya Service (Rp)</label>
-                                <input type="number" id="svcPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-600 outline-none">
+                                <input type="number" id="svcPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                             <div class="flex items-end">
-                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">Simpan Service</button>
+                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md">Simpan Service</button>
                             </div>
                         </div>
                     </form>
                 </div>
-            `;
-            openModal(contentHtml);
+            `);
 
             const container = document.getElementById('serviceItemsContainer');
             if (isEdit && record.items && record.items.length > 0) {
@@ -1107,12 +1051,13 @@
 
         function addServiceItemRow(nameVal = '', issueVal = '') {
             const container = document.getElementById('serviceItemsContainer');
+            if (!container) return;
             const rowDiv = document.createElement('div');
             rowDiv.className = 'service-item-row flex gap-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200';
             rowDiv.innerHTML = `
                 <div class="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input type="text" placeholder="Barang (mis: Printer)" value="${nameVal}" required class="svc-item-name px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-medium">
-                    <input type="text" placeholder="Kendala (mis: Rusak)" value="${issueVal}" required class="svc-item-issue px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-medium">
+                    <input type="text" placeholder="Barang (mis: Printer)" value="${nameVal}" required class="svc-item-name px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none">
+                    <input type="text" placeholder="Kendala (mis: Rusak)" value="${issueVal}" required class="svc-item-issue px-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none">
                 </div>
                 <button type="button" onclick="this.closest('.service-item-row').remove()" class="w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-trash-can text-xs"></i></button>
             `;
@@ -1121,12 +1066,6 @@
 
         async function saveServiceForm(e, editId) {
             e.preventDefault();
-            const id = document.getElementById('svcId').value;
-            const customerName = document.getElementById('svcCustomer').value;
-            const room = document.getElementById('svcRoom').value;
-            const notes = document.getElementById('svcNotes').value;
-            const estimatedPrice = parseInt(document.getElementById('svcPrice').value) || 0;
-
             const itemRows = document.querySelectorAll('.service-item-row');
             const items = [];
             itemRows.forEach(row => {
@@ -1141,35 +1080,39 @@
             }
 
             const payload = {
-                id, date: new Date().toISOString().split('T')[0],
-                customer_name: customerName, room, notes,
-                estimated_price: estimatedPrice, progress: 0, items
+                id: document.getElementById('svcId').value,
+                date: new Date().toISOString().split('T')[0],
+                customer_name: document.getElementById('svcCustomer').value,
+                room: document.getElementById('svcRoom').value,
+                notes: document.getElementById('svcNotes').value,
+                estimated_price: parseInt(document.getElementById('svcPrice').value) || 0,
+                progress: 0,
+                items: items
             };
 
-            if (supabase) {
+            if (supabaseClient) {
                 if (editId) {
-                    await supabase.from('services').update(payload).eq('id', editId);
+                    await supabaseClient.from('services').update(payload).eq('id', editId);
                 } else {
-                    await supabase.from('services').insert([payload]);
+                    await supabaseClient.from('services').insert([payload]);
                 }
                 await loadSupabaseData();
             } else {
                 if (editId) {
                     const idx = appData.services.findIndex(s => s.id === editId);
-                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], customerName, room, notes, estimatedPrice, items };
+                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], customerName: payload.customer_name, room: payload.room, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
                 } else {
-                    appData.services.unshift({ id, date: payload.date, customerName, room, notes, estimatedPrice, progress: 0, items });
+                    appData.services.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, notes: payload.notes, estimatedPrice: payload.estimated_price, progress: 0, items: payload.items });
                 }
                 renderApp();
             }
-
             closeModal();
             showToast('Data service berhasil disimpan!', 'success');
         }
 
         async function updateServiceStatus(id, newStatusIdx) {
-            if (supabase) {
-                await supabase.from('services').update({ progress: parseInt(newStatusIdx) }).eq('id', id);
+            if (supabaseClient) {
+                await supabaseClient.from('services').update({ progress: parseInt(newStatusIdx) }).eq('id', id);
                 await loadSupabaseData();
             } else {
                 const idx = appData.services.findIndex(s => s.id === id);
@@ -1180,8 +1123,8 @@
 
         async function deleteService(id) {
             if (confirm(`Yakin ingin menghapus service ${id}?`)) {
-                if (supabase) {
-                    await supabase.from('services').delete().eq('id', id);
+                if (supabaseClient) {
+                    await supabaseClient.from('services').delete().eq('id', id);
                     await loadSupabaseData();
                 } else {
                     appData.services = appData.services.filter(s => s.id !== id);
@@ -1194,43 +1137,41 @@
         function viewServiceDetail(id) {
             const item = appData.services.find(s => s.id === id);
             if (!item) return;
-            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item)}</div>`);
+            openModal(`<div class="p-6 space-y-4"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item)}</div>`);
         }
 
-        // ==========================================
+        // ------------------------------------------
         // RIWAYAT & REKAPAN TABS
-        // ==========================================
+        // ------------------------------------------
         function renderTabRiwayat() {
             return `
-                <div class="space-y-6 fade-in">
+                <div class="space-y-6">
                     <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                             <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cari Nama / Kode / Kamar</label>
-                            <input type="text" id="filterRiwayatSearch" onkeyup="applyRiwayatFilter()" placeholder="Ketik kata kunci..." class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 outline-none">
+                            <input type="text" id="filterRiwayatSearch" onkeyup="applyRiwayatFilter()" placeholder="Ketik kata kunci..." class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 outline-none">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filter Dari Tanggal</label>
-                            <input type="date" id="filterRiwayatDateFrom" onchange="applyRiwayatFilter()" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 outline-none text-slate-600">
+                            <input type="date" id="filterRiwayatDateFrom" onchange="applyRiwayatFilter()" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 outline-none text-slate-600">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Sampai Tanggal</label>
-                            <input type="date" id="filterRiwayatDateTo" onchange="applyRiwayatFilter()" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 outline-none text-slate-600">
+                            <input type="date" id="filterRiwayatDateTo" onchange="applyRiwayatFilter()" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 outline-none text-slate-600">
                         </div>
                     </div>
-
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
                             <h3 class="font-bold text-slate-800 text-xs pb-3 border-b border-slate-100 flex items-center justify-between">
                                 <span class="flex items-center gap-2"><i class="fa-solid fa-wrench text-amber-500"></i> Riwayat Service</span>
-                                <span id="countSvcRiwayat" class="text-xs font-bold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full border border-amber-100 font-mono">0</span>
+                                <span id="countSvcRiwayat" class="text-xs font-bold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full font-mono">0</span>
                             </h3>
                             <div id="riwayatServiceList" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
                         </div>
-
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
                             <h3 class="font-bold text-slate-800 text-xs pb-3 border-b border-slate-100 flex items-center justify-between">
                                 <span class="flex items-center gap-2"><i class="fa-solid fa-cart-shopping text-blue-600"></i> Riwayat Pemesanan</span>
-                                <span id="countOrdRiwayat" class="text-xs font-bold bg-blue-50 text-blue-800 px-2.5 py-0.5 rounded-full border border-blue-100 font-mono">0</span>
+                                <span id="countOrdRiwayat" class="text-xs font-bold bg-blue-50 text-blue-800 px-2.5 py-0.5 rounded-full font-mono">0</span>
                             </h3>
                             <div id="riwayatOrderList" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
                         </div>
@@ -1293,7 +1234,7 @@
             const totalOrdIncome = appData.orders.reduce((a, b) => a + (b.estimatedPrice || 0), 0);
 
             return `
-                <div class="space-y-6 fade-in">
+                <div class="space-y-6">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="bg-amber-500 text-white p-6 rounded-2xl shadow-md">
                             <span class="text-xs uppercase font-bold text-amber-100 tracking-wider">Rekapan Uang Service</span>
@@ -1304,7 +1245,6 @@
                             <h2 class="text-2xl sm:text-3xl font-extrabold font-mono mt-1">${formatRupiah(totalOrdIncome)}</h2>
                         </div>
                     </div>
-
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                             <h3 class="font-bold text-slate-800 text-xs flex items-center gap-2"><i class="fa-solid fa-chart-line text-amber-500"></i> Diagram Peningkatan Uang Service</h3>
@@ -1352,24 +1292,22 @@
             const secretBtn = document.getElementById('secretAdminBtn');
             if (secretBtn) {
                 secretBtn.addEventListener('click', () => {
-                    const contentHtml = `
-                        <div class="p-8 space-y-6 text-center fade-in">
-                            <img src="DCSC.png" alt="DCC Store" class="w-16 h-16 rounded-2xl bg-blue-50 p-2 mx-auto border border-blue-100 object-contain shadow-sm">
+                    openModal(`
+                        <div class="p-8 space-y-6 text-center">
+                            <img src="DCSC.png" alt="DCC Store" class="w-16 h-16 rounded-2xl bg-blue-50 p-2 mx-auto border border-blue-100 object-contain shadow-sm" onerror="this.style.display='none'">
                             <div>
                                 <h3 class="font-extrabold text-slate-900 text-xl tracking-tight">DCC Store Admin</h3>
                                 <p class="text-xs text-slate-400 mt-1">Masukkan Password Akses Keuangan Sektor</p>
                             </div>
-
                             <form id="adminLoginForm" class="space-y-4 text-left">
                                 <div>
                                     <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">PASSWORD</label>
-                                    <input type="password" id="adminPasswordInput" placeholder="Masukkan password" required class="w-full px-4 py-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none font-medium">
+                                    <input type="password" id="adminPasswordInput" placeholder="Masukkan password" required class="w-full px-4 py-3 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none">
                                 </div>
-                                <button type="submit" class="w-full py-3 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md">Masuk ke Sistem</button>
+                                <button type="submit" class="w-full py-3 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md">Masuk ke Sistem</button>
                             </form>
                         </div>
-                    `;
-                    openModal(contentHtml);
+                    `);
 
                     document.getElementById('adminLoginForm').addEventListener('submit', (e) => {
                         e.preventDefault();
@@ -1419,13 +1357,19 @@
                     showToast('Berhasil keluar dari Admin.', 'info');
                 });
             }
+            if (appData.activeTab === 'riwayat') {
+                setTimeout(applyRiwayatFilter, 50);
+            }
         }
 
-        window.onload = function() {
+        // Jalankan aplikasi saat halaman siap
+        window.addEventListener('DOMContentLoaded', async () => {
             renderApp();
-            loadSupabaseData();
-            initRealtimeSubscription();
-        };
+            if (supabaseClient) {
+                await loadSupabaseData();
+                initRealtimeSubscription();
+            }
+        });
     </script>
 </body>
 </html>
