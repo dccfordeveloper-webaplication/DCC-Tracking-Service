@@ -774,7 +774,8 @@
                 const item = appData.orders.find(o => o.id === id);
                 if (!item) return;
                 
-                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
+                messageText = `Assalamualaikum wr. wb.,\n\n` +
+                    `Yth. Al-Ustadz/Bapak *${item.customerName}* (${item.room}),\n\n` +
                     `Berikut konfirmasi rincian rancangan pemesanan unit di *DCC Store*:\n` +
                     `------------------------------------\n` +
                     `📌 *Kode Transaksi:* ${item.id}\n` +
@@ -783,17 +784,18 @@
                     `💰 *Estimasi Harga:* ${formatRupiah(item.estimatedPrice)}\n` +
                     `🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n` +
                     `------------------------------------\n` +
-                    `Anda dapat memantau progres pesanan secara real-time melalui website kami dengan memasukkan kode transaksi di atas:\n` +
+                    `Antum dapat memantau progres pesanan secara real-time melalui website kami dengan memasukkan kode transaksi di atas:\n` +
                     `https://tracking-service-dcc.vercel.app/\n\n` +
-                    `Terima kasih telah memercayakan kebutuhan IT Anda kepada DCC Store! 🙏`;
+                    `Terima kasih telah memercayakan kebutuhan Komputer Antum kepada DCC Store! 🙏`;
             } else {
                 const item = appData.services.find(s => s.id === id);
                 if (!item) return;
                 const unitList = item.items ? item.items.map(i => `${i.name} (${i.issue})`).join(', ') : '-';
                 
-                messageText = `Assalamualaikum👋 dengan CP Darussalam Computer Center 😊\n\n` +
+                messageText = `Assalamualaikum wr. wb.\n\n` + 
+                    `👋 Salam dari tim Darussalam Computer Center (DCC) 😊\n\n` +
                     `Barang antum sudah kami terima dengan rincian berikut :\n` +
-                    `*- No. Antrean :* ${item.id}\n` +
+                    `*- Kode Transaksi :* ${item.id}\n` +
                     `*- Nama Pelanggan :* ${item.customerName}\n` +
                     `*- Kamar :* ${item.room}\n` +
                     `*- Unit :* ${unitList}\n` +
@@ -803,7 +805,7 @@
                     `*- Estimasi Selesai :* ${item.date} (Biaya: ${formatRupiah(item.estimatedPrice)})\n\n` +
                     `Note : _Kami akan hubungi kembali jika pengerjaan selesai/belum atau jika ada konfirmasi pergantian komponen. Terima kasih!_🙏😊\n\n` +
                     `Wassalamualaikum👋\n\n` +
-                    `📌 *Lacak progres service secara real-time melalui aplikasi dengan memasukkan kode antrean di atas:*\n` +
+                    `📌 *Lacak progres service secara real-time melalui aplikasi dengan memasukkan kode transaksi di atas:*\n` +
                     `https://tracking-service-dcc.vercel.app/`;
             }
 
