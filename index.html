@@ -46,7 +46,6 @@
             overflow-x: hidden;
         }
         
-        /* Smooth Custom Animations & Transitions */
         .fade-in {
             animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
@@ -132,6 +131,7 @@
                 date: '2026-10-26',
                 customerName: 'Budi Santoso',
                 room: 'Keuangan / Lt. 2',
+                kelengkapan: 'Unit & charger',
                 notes: 'Mohon dibantu instal ulang software akuntansi.',
                 estimatedPrice: 350000,
                 progress: 1,
@@ -182,7 +182,7 @@
                 if (!svcErr && servicesData && servicesData.length > 0) {
                     appData.services = servicesData.map(s => ({
                         id: s.id, date: s.date, customerName: s.customer_name, room: s.room,
-                        notes: s.notes, estimatedPrice: s.estimated_price, progress: s.progress, items: s.items || []
+                        kelengkapan: s.kelengkapan || '', notes: s.notes, estimatedPrice: s.estimated_price, progress: s.progress, items: s.items || []
                     }));
                 }
                 renderApp();
@@ -449,6 +449,7 @@
                         `).join('')}
                     </div>
 
+                    ${record.kelengkapan ? `<div class="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900"><strong><i class="fa-solid fa-box mr-1"></i>Kelengkapan:</strong> ${record.kelengkapan}</div>` : ''}
                     ${record.notes ? `<div class="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900"><strong><i class="fa-solid fa-note-sticky mr-1"></i>Catatan:</strong> ${record.notes}</div>` : ''}
 
                     <div class="flex justify-between items-center p-4 bg-[#003b87] text-white rounded-2xl shadow-sm">
@@ -562,7 +563,6 @@
                         </div>
                     </div>
 
-                    <!-- 2 Kolom Sektor (Rata-rata transaksi telah dihilangkan) -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="bg-blue-50/85 border border-blue-100 p-5 rounded-2xl flex items-center gap-4 hover-lift">
                             <div class="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl shadow-sm">
@@ -754,7 +754,7 @@
         }
 
         // ==========================================
-        // CHAT WA PREVIEW & COPY MODAL (PENGESAHAN TEMPLATE BARU)
+        // CHAT WA PREVIEW & COPY MODAL
         // ==========================================
         function openChatModal(type, id) {
             let messageText = '';
@@ -762,7 +762,6 @@
                 const item = appData.orders.find(o => o.id === id);
                 if (!item) return;
                 
-                // Menggunakan template WhatsApp pemesanan baru yang diminta antum
                 messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\n` +
                     `Berikut konfirmasi rincian rancangan pemesanan unit di *DCC Store*:\n` +
                     `------------------------------------\n` +
@@ -780,7 +779,7 @@
                 if (!item) return;
                 const unitList = item.items ? item.items.map(i => `${i.name} (${i.issue})`).join(', ') : '-';
                 
-                // Menggunakan template service Darussalam Computer Center
+                // Template Service sesuai permintaan dengan Status Terkini & Link Aplikasi
                 messageText = `Assalamualaikum👋 dengan CP Darussalam Computer Center 😊\n\n` +
                     `Barang antum sudah kami terima dengan rincian berikut :\n` +
                     `*- No. Antrean :* ${item.id}\n` +
@@ -788,8 +787,8 @@
                     `*- Kamar :* ${item.room}\n` +
                     `*- Unit :* ${unitList}\n` +
                     `*- Keluhan :* ${item.notes || 'Perbaikan / Service perangkat'}\n` +
-                    `*- Kelengkapan :* Unit & aksesoris pendukung\n\n` +
-                    `*- Penerima :* Admin DCC Store\n` +
+                    `*- Kelengkapan :* ${item.kelengkapan || 'Unit & aksesoris pendukung'}\n\n` +
+                    `*- Status Terkini :* ${SERVICE_STAGES[item.progress].title}\n` +
                     `*- Estimasi Selesai :* ${item.date} (Biaya: ${formatRupiah(item.estimatedPrice)})\n\n` +
                     `Note : _Kami akan hubungi kembali jika pengerjaan selesai/belum atau jika ada konfirmasi pergantian komponen. Terima kasih!_🙏😊\n\n` +
                     `Wassalamualaikum👋\n\n` +
@@ -1039,8 +1038,12 @@
                             <div id="serviceItemsContainer" class="space-y-3 max-h-48 overflow-y-auto pr-1"></div>
                         </div>
                         <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Kelengkapan Barang</label>
+                            <input type="text" id="svcKelengkapan" value="${isEdit && record.kelengkapan ? record.kelengkapan : ''}" placeholder="mis: Unit & charger" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                        </div>
+                        <div>
                             <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan</label>
-                            <textarea id="svcNotes" placeholder="Catatan kelengkapan..." class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none h-16">${isEdit && record.notes ? record.notes : ''}</textarea>
+                            <textarea id="svcNotes" placeholder="Catatan tambahan..." class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none h-16">${isEdit && record.notes ? record.notes : ''}</textarea>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -1098,6 +1101,7 @@
                 date: new Date().toISOString().split('T')[0],
                 customer_name: document.getElementById('svcCustomer').value,
                 room: document.getElementById('svcRoom').value,
+                kelengkapan: document.getElementById('svcKelengkapan').value,
                 notes: document.getElementById('svcNotes').value,
                 estimated_price: parseInt(document.getElementById('svcPrice').value) || 0,
                 progress: 0,
@@ -1114,9 +1118,9 @@
             } else {
                 if (editId) {
                     const idx = appData.services.findIndex(s => s.id === editId);
-                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], customerName: payload.customer_name, room: payload.room, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
+                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], customerName: payload.customer_name, room: payload.room, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
                 } else {
-                    appData.services.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, notes: payload.notes, estimatedPrice: payload.estimated_price, progress: 0, items: payload.items });
+                    appData.services.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, progress: 0, items: payload.items });
                 }
                 renderApp();
             }
@@ -1273,16 +1277,52 @@
             `;
         }
 
+        // Grafik Rekapan dihitung otomatis berdasarkan data aktual tanggal transaksi
         function initRekapanCharts() {
+            const serviceMap = {};
+            appData.services.forEach(item => {
+                const date = item.date || 'Lainnya';
+                serviceMap[date] = (serviceMap[date] || 0) + (item.estimatedPrice || 0);
+            });
+            const svcDates = Object.keys(serviceMap).sort();
+            const svcTotals = svcDates.map(date => serviceMap[date]);
+
+            const orderMap = {};
+            appData.orders.forEach(item => {
+                const date = item.date || 'Lainnya';
+                orderMap[date] = (orderMap[date] || 0) + (item.estimatedPrice || 0);
+            });
+            const ordDates = Object.keys(orderMap).sort();
+            const ordTotals = ordDates.map(date => orderMap[date]);
+
             const ctxSvc = document.getElementById('chartServiceIncome');
             if (ctxSvc) {
                 new Chart(ctxSvc, {
                     type: 'line',
                     data: {
-                        labels: ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28'],
-                        datasets: [{ label: 'Pemasukan Service (Rp)', data: [100000, 350000, 200000, 150000], borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.4 }]
+                        labels: svcDates.length ? svcDates : ['Belum ada data'],
+                        datasets: [{ 
+                            label: 'Pemasukan Service (Rp)', 
+                            data: svcTotals.length ? svcTotals : [0], 
+                            borderColor: '#f59e0b', 
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+                            fill: true, 
+                            tension: 0.4 
+                        }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false }
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                ticks: {
+                                    callback: function(value) {
+                                        return 'Rp ' + value.toLocaleString('id-ID');
+                                    }
+                                }
+                            }
+                        }
+                    }
                 });
             }
 
@@ -1291,10 +1331,29 @@
                 new Chart(ctxOrd, {
                     type: 'line',
                     data: {
-                        labels: ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28'],
-                        datasets: [{ label: 'Pemasukan Pemesanan (Rp)', data: [18500000, 5000000, 7200000, 12000000], borderColor: '#0058c4', backgroundColor: 'rgba(0, 88, 196, 0.1)', fill: true, tension: 0.4 }]
+                        labels: ordDates.length ? ordDates : ['Belum ada data'],
+                        datasets: [{ 
+                            label: 'Pemasukan Pemesanan (Rp)', 
+                            data: ordTotals.length ? ordTotals : [0], 
+                            borderColor: '#0058c4', 
+                            backgroundColor: 'rgba(0, 88, 196, 0.1)', 
+                            fill: true, 
+                            tension: 0.4 
+                        }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false }
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                ticks: {
+                                    callback: function(value) {
+                                        return 'Rp ' + value.toLocaleString('id-ID');
+                                    }
+                                }
+                            }
+                        }
+                    }
                 });
             }
         }
