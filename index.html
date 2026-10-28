@@ -98,7 +98,6 @@
             console.error("Gagal menginisialisasi Supabase:", e);
         }
 
-        // Default local fallback state
         const DEFAULT_ORDERS = [
             {
                 id: 'ORD-7821',
@@ -110,10 +109,7 @@
                 progress: 2,
                 excelData: [
                     { component: 'Processor', spec: 'Intel Core i7-13700K', qty: 1, price: 6200000 },
-                    { component: 'Motherboard', spec: 'ASUS ROG Strix Z790-F', qty: 1, price: 4800000 },
-                    { component: 'RAM', spec: 'Corsair Vengeance DDR5 32GB (2x16GB)', qty: 1, price: 2100000 },
-                    { component: 'VGA', spec: 'NVIDIA RTX 4070 12GB', qty: 1, price: 9500000 },
-                    { component: 'Storage', spec: 'SSD NVMe Samsung 980 Pro 1TB', qty: 1, price: 1600000 }
+                    { component: 'Motherboard', spec: 'ASUS ROG Strix Z790-F', qty: 1, price: 4800000 }
                 ]
             }
         ];
@@ -124,7 +120,7 @@
                 date: '2026-10-26',
                 customerName: 'Budi Santoso',
                 room: 'Keuangan / Lt. 2',
-                notes: 'Mohon dibantu instal ulang software akuntansi jika selesai.',
+                notes: 'Mohon dibantu instal ulang software akuntansi.',
                 estimatedPrice: 350000,
                 progress: 1,
                 items: [
@@ -167,26 +163,14 @@
 
                 if (!ordErr && ordersData && ordersData.length > 0) {
                     appData.orders = ordersData.map(o => ({
-                        id: o.id, 
-                        date: o.date, 
-                        customerName: o.customer_name, 
-                        room: o.room,
-                        orderType: o.order_type, 
-                        estimatedPrice: o.estimated_price, 
-                        progress: o.progress, 
-                        excelData: o.excel_data || []
+                        id: o.id, date: o.date, customerName: o.customer_name, room: o.room,
+                        orderType: o.order_type, estimatedPrice: o.estimated_price, progress: o.progress, excelData: o.excel_data || []
                     }));
                 }
                 if (!svcErr && servicesData && servicesData.length > 0) {
                     appData.services = servicesData.map(s => ({
-                        id: s.id, 
-                        date: s.date, 
-                        customerName: s.customer_name, 
-                        room: s.room,
-                        notes: s.notes, 
-                        estimatedPrice: s.estimated_price, 
-                        progress: s.progress, 
-                        items: s.items || []
+                        id: s.id, date: s.date, customerName: s.customer_name, room: s.room,
+                        notes: s.notes, estimatedPrice: s.estimated_price, progress: s.progress, items: s.items || []
                     }));
                 }
                 renderApp();
@@ -283,7 +267,7 @@
                 <div class="min-h-screen bg-[#00459c] text-white flex flex-col justify-between">
                     <header class="p-6 flex justify-between items-center max-w-5xl mx-auto w-full">
                         <div class="flex items-center gap-3">
-                            <img src="DCSC.png" alt="DCC Store" class="w-10 h-10 rounded-xl bg-white/10 p-1 border border-white/20 shadow-sm object-contain" onerror="this.style.display='none'">
+                            <img src="DCSC.png" alt="DCC Store" class="w-10 h-10 rounded-xl bg-white/10 p-1 border border-white/25 shadow-sm object-contain" onerror="this.style.display='none'">
                             <div>
                                 <h1 class="text-xl font-bold tracking-tight">DCC Store</h1>
                                 <p class="text-xs text-blue-200">Sistem Pelacakan Layanan & Service 2.0</p>
@@ -463,9 +447,9 @@
             `;
         }
 
-        // ------------------------------------------
+        // ==========================================
         // ADMIN DASHBOARD
-        // ------------------------------------------
+        // ==========================================
         function renderAdminView() {
             return `
                 <div class="min-h-screen bg-[#00459c] text-white flex flex-col">
@@ -767,20 +751,46 @@
             document.getElementById('serviceTableBody').innerHTML = renderServiceRows(filtered);
         }
 
-        // ------------------------------------------
-        // CHAT WA PREVIEW & COPY MODAL
-        // ------------------------------------------
+        // ==========================================
+        // CHAT WA PREVIEW & COPY MODAL (CUSTOM DARUSSALAM TEMPLATE)
+        // ==========================================
         function openChatModal(type, id) {
-            let item = null;
             let messageText = '';
             if (type === 'order') {
-                item = appData.orders.find(o => o.id === id);
+                const item = appData.orders.find(o => o.id === id);
                 if (!item) return;
-                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\nBerikut konfirmasi rincian rancangan pemesanan unit di *DCC Store*:\n------------------------------------\n📌 *Kode Unik ID:* ${item.id}\n📅 *Tanggal Masuk:* ${item.date}\n🖥️ *Jenis Pesanan:* ${item.orderType}\n💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n------------------------------------\nAnda dapat memantau progres pesanan secara real-time melalui website kami.\n\nTerima kasih telah memercayakan kebutuhan IT Anda kepada DCC Store! 🙏`;
+                messageText = `Assalamualaikum👋 dengan CP Darussalam Computer Center 😊\n\n` +
+                    `Barang antum sudah kami terima dengan rincian berikut :\n` +
+                    `*- No. Antrean :* ${item.id}\n` +
+                    `*- Nama Pelanggan :* ${item.customerName}\n` +
+                    `*- Kamar :* ${item.room}\n` +
+                    `*- Unit :* ${item.orderType}\n` +
+                    `*- Keluhan :* Pemesanan & Pengadaan Unit\n` +
+                    `*- Kelengkapan :* Lengkap sesuai rancangan\n\n` +
+                    `*- Penerima :* Admin DCC Store\n` +
+                    `*- Estimasi Selesai :* ${item.date}\n\n` +
+                    `Note : _Kami akan hubungi kembali jika pengerjaan selesai/belum atau jika ada konfirmasi pergantian komponen. Terima kasih!_🙏😊\n\n` +
+                    `Wassalamualaikum👋\n\n` +
+                    `📌 *Lacak progres secara real-time melalui aplikasi dengan memasukkan kode unik di atas:*\n` +
+                    `https://tracking-service-dcc.vercel.app/`;
             } else {
-                item = appData.services.find(s => s.id === id);
+                const item = appData.services.find(s => s.id === id);
                 if (!item) return;
-                messageText = `Yth. Bapak/Ibu *${item.customerName}* (${item.room}),\n\nBerikut konfirmasi update layanan service di *DCC Store*:\n------------------------------------\n📌 *Kode Unik ID:* ${item.id}\n📅 *Tanggal Masuk:* ${item.date}\n📦 *Jumlah Barang:* ${item.items.length} Item\n💰 *Estimasi Biaya:* ${formatRupiah(item.estimatedPrice)}\n🔄 *Status Terkini:* ${SERVICE_STAGES[item.progress].title}\n------------------------------------\nAnda dapat memantau status pengerjaan secara real-time melalui website kami.\n\nTerima kasih telah memercayakan perbaikan perangkat kepada DCC Store! 🙏`;
+                const unitList = item.items ? item.items.map(i => `${i.name} (${i.issue})`).join(', ') : '-';
+                messageText = `Assalamualaikum👋 dengan CP Darussalam Computer Center 😊\n\n` +
+                    `Barang antum sudah kami terima dengan rincian berikut :\n` +
+                    `*- No. Antrean :* ${item.id}\n` +
+                    `*- Nama Pelanggan :* ${item.customerName}\n` +
+                    `*- Kamar :* ${item.room}\n` +
+                    `*- Unit :* ${unitList}\n` +
+                    `*- Keluhan :* ${item.notes || 'Perbaikan / Service perangkat'}\n` +
+                    `*- Kelengkapan :* Unit & aksesoris pendukung\n\n` +
+                    `*- Penerima :* Admin DCC Store\n` +
+                    `*- Estimasi Selesai :* ${item.date} (Biaya: ${formatRupiah(item.estimatedPrice)})\n\n` +
+                    `Note : _Kami akan hubungi kembali jika pengerjaan selesai/belum atau jika ada konfirmasi pergantian komponen. Terima kasih!_🙏😊\n\n` +
+                    `Wassalamualaikum👋\n\n` +
+                    `📌 *Lacak progres secara real-time melalui aplikasi dengan memasukkan kode unik di atas:*\n` +
+                    `https://tracking-service-dcc.vercel.app/`;
             }
 
             openModal(`
@@ -793,7 +803,7 @@
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <div class="space-y-2">
-                        <textarea id="chatTextarea" readonly class="w-full h-48 p-3.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-2xl outline-none text-slate-800 leading-relaxed">${messageText}</textarea>
+                        <textarea id="chatTextarea" readonly class="w-full h-56 p-3.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-2xl outline-none text-slate-800 leading-relaxed">${messageText}</textarea>
                     </div>
                     <div class="flex gap-3 pt-2">
                         <button onclick="copyChatMessage()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2">
@@ -816,9 +826,9 @@
             }
         }
 
-        // ------------------------------------------
+        // ==========================================
         // CRUD MODALS & DATABASE ACTIONS
-        // ------------------------------------------
+        // ==========================================
         function openOrderModal(orderId = null) {
             const isEdit = !!orderId;
             const record = isEdit ? appData.orders.find(o => o.id === orderId) : null;
@@ -1140,9 +1150,9 @@
             openModal(`<div class="p-6 space-y-4"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item)}</div>`);
         }
 
-        // ------------------------------------------
+        // ==========================================
         // RIWAYAT & REKAPAN TABS
-        // ------------------------------------------
+        // ==========================================
         function renderTabRiwayat() {
             return `
                 <div class="space-y-6">
@@ -1362,7 +1372,6 @@
             }
         }
 
-        // Jalankan aplikasi saat halaman siap
         window.addEventListener('DOMContentLoaded', async () => {
             renderApp();
             if (supabaseClient) {
