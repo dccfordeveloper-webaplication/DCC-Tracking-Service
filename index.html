@@ -167,17 +167,6 @@
                     { component: 'RAM', spec: 'VenomRX 8GB DDR4', qty: 1, price: 989000 },
                     { component: 'Monitor', spec: 'AOC 22B15H2 22"', qty: 2, price: 1055000 }
                 ]
-            },
-            {
-                id: 'ORD-7297',
-                date: '2026-10-28',
-                customerName: 'Rajief',
-                room: 'SEKPIM',
-                phone: '081339275744',
-                orderType: 'PC Full Set',
-                estimatedPrice: 10861000,
-                progress: 4,
-                excelData: []
             }
         ];
 
@@ -191,7 +180,7 @@
                 kelengkapan: 'Unit & kabel power',
                 notes: 'Perbaikan sistem & instalasi',
                 estimatedPrice: 350000,
-                progress: 3,
+                progress: 1,
                 items: [
                     { name: 'Komputer', issue: 'Lemot dan nglag' },
                     { name: 'Monitor', issue: 'Ngeglitch' }
@@ -231,16 +220,31 @@
                 const { data: ordersData, error: ordErr } = await supabaseClient.from('orders').select('*');
                 const { data: servicesData, error: svcErr } = await supabaseClient.from('services').select('*');
 
-                if (!ordErr && ordersData && ordersData.length > 0) {
+                if (!ordErr && ordersData) {
                     appData.orders = ordersData.map(o => ({
-                        id: o.id, date: o.date, customerName: o.customer_name, room: o.room, phone: o.phone || '',
-                        orderType: o.order_type, estimatedPrice: o.estimated_price, progress: o.progress, excelData: o.excel_data || []
+                        id: o.id, 
+                        date: o.date, 
+                        customerName: o.customer_name, 
+                        room: o.room, 
+                        phone: o.phone || '',
+                        orderType: o.order_type, 
+                        estimatedPrice: o.estimated_price, 
+                        progress: o.progress ?? 0, 
+                        excelData: o.excel_data || []
                     }));
                 }
-                if (!svcErr && servicesData && servicesData.length > 0) {
+                if (!svcErr && servicesData) {
                     appData.services = servicesData.map(s => ({
-                        id: s.id, date: s.date, customerName: s.customer_name, room: s.room, phone: s.phone || '',
-                        kelengkapan: s.kelengkapan || '', notes: s.notes, estimatedPrice: s.estimated_price, progress: s.progress, items: s.items || []
+                        id: s.id, 
+                        date: s.date, 
+                        customerName: s.customer_name, 
+                        room: s.room, 
+                        phone: s.phone || '',
+                        kelengkapan: s.kelengkapan || '', 
+                        notes: s.notes || '', 
+                        estimatedPrice: s.estimated_price, 
+                        progress: s.progress ?? 0, 
+                        items: s.items || []
                     }));
                 }
                 renderApp();
@@ -489,7 +493,6 @@
                         <span class="text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600 font-semibold">Jenis: ${record.orderType}</span>
                     </div>
 
-                    <!-- Bungkus dengan overflow-x-auto agar bisa di-scroll horizontal di HP -->
                     <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
                         <table class="w-full text-left text-xs min-w-[500px]">
                             <thead class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
@@ -1378,7 +1381,7 @@
         }
 
         // ==========================================
-        // CRUD MODALS & DATABASE ACTIONS (AMBL & SIMPAN)
+        // CRUD MODALS & DATABASE ACTIONS
         // ==========================================
         function openOrderModal(orderId = null) {
             const isEdit = !!orderId;
@@ -1509,7 +1512,6 @@
             const priceVal = parseInt(document.getElementById('ordPrice').value) || 0;
             const excelDataVal = window.tempExcelParsed || [];
 
-            // Payload untuk database (mengikuti nama kolom standar supabase)
             const dbPayload = {
                 id: idVal,
                 date: dateVal,
