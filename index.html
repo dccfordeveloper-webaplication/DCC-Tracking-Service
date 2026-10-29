@@ -493,6 +493,7 @@
                         <span class="text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600 font-semibold">Jenis: ${record.orderType}</span>
                     </div>
 
+                    <!-- Pembungkus scroll horizontal -->
                     <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
                         <table class="w-full text-left text-xs min-w-[500px]">
                             <thead class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
@@ -1524,11 +1525,18 @@
             };
 
             if (supabaseClient) {
+                let res;
                 if (editId) {
-                    await supabaseClient.from('orders').update(dbPayload).eq('id', editId);
+                    res = await supabaseClient.from('orders').update(dbPayload).eq('id', editId);
                 } else {
                     dbPayload.progress = 0;
-                    await supabaseClient.from('orders').insert([dbPayload]);
+                    res = await supabaseClient.from('orders').insert([dbPayload]);
+                }
+
+                if (res.error) {
+                    console.error("Error Simpan Order Supabase:", res.error);
+                    showToast('Gagal menyimpan: ' + res.error.message, 'error');
+                    return;
                 }
                 await loadSupabaseData();
             } else {
@@ -1701,11 +1709,18 @@
             };
 
             if (supabaseClient) {
+                let res;
                 if (editId) {
-                    await supabaseClient.from('services').update(dbPayload).eq('id', editId);
+                    res = await supabaseClient.from('services').update(dbPayload).eq('id', editId);
                 } else {
                     dbPayload.progress = 0;
-                    await supabaseClient.from('services').insert([dbPayload]);
+                    res = await supabaseClient.from('services').insert([dbPayload]);
+                }
+
+                if (res.error) {
+                    console.error("Error Simpan Service Supabase:", res.error);
+                    showToast('Gagal menyimpan: ' + res.error.message, 'error');
+                    return;
                 }
                 await loadSupabaseData();
             } else {
