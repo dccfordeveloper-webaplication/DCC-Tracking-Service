@@ -80,7 +80,6 @@
             border-radius: 4px;
         }
 
-        /* Print Media styling untuk Invoice & Kwitansi A4 */
         @media print {
             body * {
                 visibility: hidden;
@@ -158,6 +157,7 @@
                 date: '2026-10-28',
                 customerName: 'Ali',
                 room: 'SARPRAS UNIDA',
+                phone: '081234567890',
                 orderType: 'PC Full Set',
                 estimatedPrice: 10394000,
                 progress: 0,
@@ -173,6 +173,7 @@
                 date: '2026-10-28',
                 customerName: 'Rajief',
                 room: 'SEKPIM',
+                phone: '081339275744',
                 orderType: 'PC Full Set',
                 estimatedPrice: 10861000,
                 progress: 4,
@@ -186,6 +187,7 @@
                 date: '2026-10-28',
                 customerName: 'Krisna',
                 room: 'Penggemukan Sapi',
+                phone: '085123456789',
                 kelengkapan: 'Unit & kabel power',
                 notes: 'Perbaikan sistem & instalasi',
                 estimatedPrice: 350000,
@@ -231,13 +233,13 @@
 
                 if (!ordErr && ordersData && ordersData.length > 0) {
                     appData.orders = ordersData.map(o => ({
-                        id: o.id, date: o.date, customerName: o.customer_name, room: o.room,
+                        id: o.id, date: o.date, customerName: o.customer_name, room: o.room, phone: o.phone || '',
                         orderType: o.order_type, estimatedPrice: o.estimated_price, progress: o.progress, excelData: o.excel_data || []
                     }));
                 }
                 if (!svcErr && servicesData && servicesData.length > 0) {
                     appData.services = servicesData.map(s => ({
-                        id: s.id, date: s.date, customerName: s.customer_name, room: s.room,
+                        id: s.id, date: s.date, customerName: s.customer_name, room: s.room, phone: s.phone || '',
                         kelengkapan: s.kelengkapan || '', notes: s.notes, estimatedPrice: s.estimated_price, progress: s.progress, items: s.items || []
                     }));
                 }
@@ -702,6 +704,7 @@
                                         <th class="p-3.5">Tgl Masuk</th>
                                         <th class="p-3.5">Nama Pelanggan</th>
                                         <th class="p-3.5">Kamar / Bagian</th>
+                                        <th class="p-3.5">No. WA</th>
                                         <th class="p-3.5">Jenis Pesanan</th>
                                         <th class="p-3.5">Progres</th>
                                         <th class="p-3.5 text-right">Estimasi Harga</th>
@@ -719,7 +722,7 @@
         }
 
         function renderOrderRows(ordersList) {
-            if (ordersList.length === 0) return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
+            if (ordersList.length === 0) return `<tr><td colspan="9" class="p-6 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
             return ordersList.map(item => `
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="p-3.5 font-mono font-bold text-blue-700">
@@ -730,6 +733,7 @@
                     <td class="p-3.5 text-slate-500">${item.date}</td>
                     <td class="p-3.5 font-bold text-slate-800">${item.customerName}</td>
                     <td class="p-3.5 text-slate-600">${item.room}</td>
+                    <td class="p-3.5 text-slate-600 font-mono">${item.phone || '-'}</td>
                     <td class="p-3.5 text-slate-600 font-medium">${item.orderType}</td>
                     <td class="p-3.5">
                         <select onchange="updateOrderStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
@@ -782,6 +786,7 @@
                                         <th class="p-3.5">Tgl Masuk</th>
                                         <th class="p-3.5">Nama Pelanggan</th>
                                         <th class="p-3.5">Kamar / Bagian</th>
+                                        <th class="p-3.5">No. WA</th>
                                         <th class="p-3.5 text-center">Jml Barang</th>
                                         <th class="p-3.5">Progres</th>
                                         <th class="p-3.5 text-right">Estimasi Biaya</th>
@@ -799,7 +804,7 @@
         }
 
         function renderServiceRows(servicesList) {
-            if (servicesList.length === 0) return `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data service.</td></tr>`;
+            if (servicesList.length === 0) return `<tr><td colspan="9" class="p-6 text-center text-slate-400">Belum ada data service.</td></tr>`;
             return servicesList.map(item => `
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="p-3.5 font-mono font-bold text-amber-600">
@@ -810,6 +815,7 @@
                     <td class="p-3.5 text-slate-500">${item.date}</td>
                     <td class="p-3.5 font-bold text-slate-800">${item.customerName}</td>
                     <td class="p-3.5 text-slate-600">${item.room}</td>
+                    <td class="p-3.5 text-slate-600 font-mono">${item.phone || '-'}</td>
                     <td class="p-3.5 text-center font-bold text-slate-700">
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px]">${item.items ? item.items.length : 0} Item</span>
                     </td>
@@ -843,12 +849,11 @@
         }
 
         // ==========================================
-        // LAMAN INVOICE & KWITANSI BARU
+        // LAMAN INVOICE & KWITANSI
         // ==========================================
         function renderTabInvoice() {
             return `
                 <div class="space-y-6 fade-in">
-                    <!-- Top Action Bar: Search & Edit Settings Button -->
                     <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                         <div class="relative flex-grow max-w-md">
                             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -921,7 +926,7 @@
         function renderOrderInvoiceRows(list) {
             if (list.length === 0) return `<tr><td colspan="7" class="p-5 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
             return list.map(item => {
-                const isFinished = item.progress === 4; // 'Selesai' di Order
+                const isFinished = item.progress === 4;
                 return `
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="p-3 font-mono font-bold text-blue-700">${item.id}</td>
@@ -955,7 +960,7 @@
         function renderServiceInvoiceRows(list) {
             if (list.length === 0) return `<tr><td colspan="7" class="p-5 text-center text-slate-400">Belum ada data service.</td></tr>`;
             return list.map(item => {
-                const isFinished = item.progress === 3; // 'Selesai' di Service
+                const isFinished = item.progress === 3;
                 return `
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="p-3 font-mono font-bold text-amber-600">${item.id}</td>
@@ -1001,7 +1006,6 @@
             if (countSvc) countSvc.textContent = `${filteredServices.length} Transaksi`;
         }
 
-        // Modal Pilihan Edit Template (Warna Tombol Berbeda)
         function openEditTemplateChoiceModal() {
             openModal(`
                 <div class="p-6 sm:p-8 space-y-6 text-center fade-in">
@@ -1014,13 +1018,10 @@
                     </div>
 
                     <div class="space-y-3 pt-2">
-                        <!-- Tombol Edit Invoice (Warna Biru) -->
                         <button onclick="openEditTemplateForm('invoice')" class="w-full py-3.5 px-5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all duration-300 hover:scale-[1.02] flex items-center justify-center gap-3">
                             <i class="fa-solid fa-file-invoice text-base"></i>
                             <span>Edit Template Invoice</span>
                         </button>
-
-                        <!-- Tombol Edit Kwitansi (Warna Hijau) -->
                         <button onclick="openEditTemplateForm('kwitansi')" class="w-full py-3.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all duration-300 hover:scale-[1.02] flex items-center justify-center gap-3">
                             <i class="fa-solid fa-receipt text-base"></i>
                             <span>Edit Template Kwitansi</span>
@@ -1121,7 +1122,7 @@
         }
 
         // ==========================================
-        // GENERATE INVOICE & KWITANSI PDF (Optimized for 1 page A4)
+        // GENERATE INVOICE & KWITANSI PDF
         // ==========================================
         function generateDocument(docType, sourceCategory, id) {
             let dataItem = null;
@@ -1218,7 +1219,7 @@
         function renderInvoiceDocHtml(dataItem, tableItemsHtml, subtotal) {
             return `
                 <div>
-                    <!-- Header Kop Perusahaan -->
+                    <!-- Kop Perusahaan -->
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; border-bottom: 2px solid #0058c4; padding-bottom: 12px;">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <img src="DCSC.png" alt="Logo" style="width: 50px; height: 50px; object-fit: contain;">
@@ -1239,10 +1240,10 @@
                     <div style="margin-bottom: 14px; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <span style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b;">Tagihan Untuk:</span>
                         <h3 style="font-size: 13px; font-weight: 800; color: #0f172a; margin: 2px 0 0 0;">${dataItem.customerName}</h3>
-                        <p style="font-size: 10px; color: #334155; margin: 0;">Kamar / Lokasi: ${dataItem.room}</p>
+                        <p style="font-size: 10px; color: #334155; margin: 0;">Kamar / Lokasi: ${dataItem.room} ${dataItem.phone ? `| No. WA: ${dataItem.phone}` : ''}</p>
                     </div>
 
-                    <!-- Tabel Produk (Tanpa Kolom Diskon) -->
+                    <!-- Tabel Produk (Tanpa Diskon) -->
                     <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 14px;">
                         <thead>
                             <tr style="background: #003b87; color: white; text-transform: uppercase; font-size: 9px;">
@@ -1277,7 +1278,7 @@
                     </div>
                 </div>
 
-                <!-- Footer Keterangan & Tanda Tangan (Selalu di Bawah Pas A4) -->
+                <!-- Footer Keterangan & Tanda Tangan -->
                 <div>
                     <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #cbd5e1; padding-top: 14px; margin-top: auto;">
                         <div style="max-width: 340px; font-size: 9px; color: #475569; line-height: 1.4;">
@@ -1304,7 +1305,6 @@
             const terbilangTeks = terbilang(subtotal);
             return `
                 <div>
-                    <!-- Kop Kwitansi -->
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #059669; padding-bottom: 12px;">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <img src="DCSC.png" alt="Logo" style="width: 50px; height: 50px; object-fit: contain;">
@@ -1320,7 +1320,6 @@
                         </div>
                     </div>
 
-                    <!-- Isian Rincian Kwitansi -->
                     <div style="margin-bottom: 24px; font-size: 11.5px;">
                         <div style="display: flex; border-bottom: 1px dashed #cbd5e1; padding: 10px 0;">
                             <span style="width: 150px; font-weight: bold; color: #475569;">Telah Terima Dari</span>
@@ -1340,7 +1339,6 @@
                     </div>
                 </div>
 
-                <!-- Nominal Uang & Tanda Tangan -->
                 <div>
                     <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 20px; margin-top: auto;">
                         <div style="background: #059669; color: white; padding: 12px 20px; border-radius: 12px; display: inline-block;">
@@ -1379,7 +1377,7 @@
         }
 
         // ==========================================
-        // CRUD MODALS & DATABASE ACTIONS
+        // CRUD MODALS & DATABASE ACTIONS (DENGAN NO. WA)
         // ==========================================
         function openOrderModal(orderId = null) {
             const isEdit = !!orderId;
@@ -1408,10 +1406,14 @@
                                 <input type="text" id="ordCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian</label>
                                 <input type="text" id="ordRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">No. WhatsApp</label>
+                                <input type="text" id="ordPhone" value="${isEdit && record.phone ? record.phone : ''}" placeholder="mis: 08123456789" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Jenis Pesanan</label>
@@ -1502,6 +1504,7 @@
                 date: document.getElementById('ordDate').value || getTodayDateString(),
                 customer_name: document.getElementById('ordCustomer').value,
                 room: document.getElementById('ordRoom').value,
+                phone: document.getElementById('ordPhone').value,
                 order_type: document.getElementById('ordType').value,
                 estimated_price: parseInt(document.getElementById('ordPrice').value) || 0,
                 progress: 0,
@@ -1518,9 +1521,9 @@
             } else {
                 if (editId) {
                     const idx = appData.orders.findIndex(o => o.id === editId);
-                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, orderType: payload.order_type, estimatedPrice: payload.estimated_price, excelData: payload.excel_data };
+                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, orderType: payload.order_type, estimatedPrice: payload.estimated_price, excelData: payload.excel_data };
                 } else {
-                    appData.orders.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, orderType: payload.order_type, estimatedPrice: payload.estimated_price, progress: 0, excelData: payload.excel_data });
+                    appData.orders.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, orderType: payload.order_type, estimatedPrice: payload.estimated_price, progress: 0, excelData: payload.excel_data });
                 }
                 renderApp();
             }
@@ -1585,9 +1588,15 @@
                                 <input type="text" id="svcCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian</label>
-                            <input type="text" id="svcRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian</label>
+                                <input type="text" id="svcRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">No. WhatsApp</label>
+                                <input type="text" id="svcPhone" value="${isEdit && record.phone ? record.phone : ''}" placeholder="mis: 08123456789" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                            </div>
                         </div>
                         <div class="space-y-3 border-t border-b border-slate-100 py-4">
                             <div class="flex justify-between items-center">
@@ -1660,6 +1669,7 @@
                 date: document.getElementById('svcDate').value || getTodayDateString(),
                 customer_name: document.getElementById('svcCustomer').value,
                 room: document.getElementById('svcRoom').value,
+                phone: document.getElementById('svcPhone').value,
                 kelengkapan: document.getElementById('svcKelengkapan').value,
                 notes: document.getElementById('svcNotes').value,
                 estimated_price: parseInt(document.getElementById('svcPrice').value) || 0,
@@ -1677,9 +1687,9 @@
             } else {
                 if (editId) {
                     const idx = appData.services.findIndex(s => s.id === editId);
-                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
+                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
                 } else {
-                    appData.services.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, progress: 0, items: payload.items });
+                    appData.services.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, progress: 0, items: payload.items });
                 }
                 renderApp();
             }
@@ -1718,13 +1728,16 @@
         }
 
         // ==========================================
-        // CHAT WA PREVIEW & COPY MODAL
+        // CHAT WA PREVIEW & COPY MODAL (OTOMATIS NOMOR HP)
         // ==========================================
         function openChatModal(type, id) {
             let messageText = '';
+            let customerPhone = '';
+
             if (type === 'order') {
                 const item = appData.orders.find(o => o.id === id);
                 if (!item) return;
+                customerPhone = item.phone || '';
                 
                 messageText = `Assalamualaikum wr. wb.,\n\n` +
                     `Yth. Al-Ustadz/Bapak *${item.customerName}* (${item.room}),\n\n` +
@@ -1742,6 +1755,7 @@
             } else {
                 const item = appData.services.find(s => s.id === id);
                 if (!item) return;
+                customerPhone = item.phone || '';
                 const unitList = item.items ? item.items.map(i => `${i.name} (${i.issue})`).join(', ') : '-';
                 
                 messageText = `Assalamualaikum wr. wb.\n\n` + 
@@ -1761,12 +1775,20 @@
                     `https://tracking-service-dcc.vercel.app/`;
             }
 
+            // Format nomor HP ke standar internasional (ubah 08... jadi 628...)
+            let formattedPhone = customerPhone.replace(/[^0-9]/g, '');
+            if (formattedPhone.startsWith('0')) {
+                formattedPhone = '62' + formattedPhone.substring(1);
+            }
+
+            const waUrl = formattedPhone ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}` : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+
             openModal(`
                 <div class="p-6 sm:p-8 space-y-5 fade-in">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-4">
                         <div class="flex items-center gap-2">
                             <i class="fa-brands fa-whatsapp text-emerald-600 text-xl"></i>
-                            <h3 class="font-bold text-slate-900 text-base">Pratinjau & Salin Pesan WA</h3>
+                            <h3 class="font-bold text-slate-900 text-base">Pratinjau & Salin Pesan WA ${customerPhone ? `(Tujuan: ${customerPhone})` : ''}</h3>
                         </div>
                         <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
                     </div>
@@ -1777,8 +1799,8 @@
                         <button onclick="copyChatMessage()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2">
                             <i class="fa-regular fa-copy"></i> Salin Teks Chat
                         </button>
-                        <button onclick="window.open('https://wa.me/?text=${encodeURIComponent(messageText)}', '_blank')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2">
-                            <i class="fa-brands fa-whatsapp"></i> Buka WA
+                        <button onclick="window.open('${waUrl}', '_blank')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2">
+                            <i class="fa-brands fa-whatsapp"></i> Buka WA Langsung
                         </button>
                     </div>
                 </div>
