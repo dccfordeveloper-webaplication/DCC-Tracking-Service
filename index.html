@@ -489,8 +489,9 @@
                         <span class="text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600 font-semibold">Jenis: ${record.orderType}</span>
                     </div>
 
-                    <div class="overflow-hidden border border-slate-200 rounded-2xl">
-                        <table class="w-full text-left text-xs">
+                    <!-- Bungkus dengan overflow-x-auto agar bisa di-scroll horizontal di HP -->
+                    <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+                        <table class="w-full text-left text-xs min-w-[500px]">
                             <thead class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
                                 <tr>
                                     <th class="p-3">Komponen</th>
@@ -502,10 +503,10 @@
                             <tbody class="divide-y divide-slate-100">
                                 ${record.excelData && record.excelData.length > 0 ? record.excelData.map(item => `
                                     <tr class="hover:bg-slate-50 transition-colors">
-                                        <td class="p-3 font-semibold text-slate-800">${item.component}</td>
+                                        <td class="p-3 font-semibold text-slate-800 whitespace-nowrap">${item.component}</td>
                                         <td class="p-3 text-slate-600">${item.spec}</td>
                                         <td class="p-3 text-center font-medium">${item.qty}</td>
-                                        <td class="p-3 text-right font-mono text-slate-700">${formatRupiah(item.price)}</td>
+                                        <td class="p-3 text-right font-mono text-slate-700 whitespace-nowrap">${formatRupiah(item.price)}</td>
                                     </tr>
                                 `).join('') : `<tr><td colspan="4" class="p-4 text-center text-slate-400">Belum ada detail spesifikasi.</td></tr>`}
                             </tbody>
@@ -697,7 +698,7 @@
 
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs" id="orderTable">
+                            <table class="w-full text-left text-xs min-w-[800px]" id="orderTable">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
                                         <th class="p-3.5">Kode Transaksi</th>
@@ -725,23 +726,23 @@
             if (ordersList.length === 0) return `<tr><td colspan="9" class="p-6 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
             return ordersList.map(item => `
                 <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="p-3.5 font-mono font-bold text-blue-700">
+                    <td class="p-3.5 font-mono font-bold text-blue-700 whitespace-nowrap">
                         <button onclick="viewOrderDetail('${item.id}')" class="hover:underline flex items-center gap-1">
                             <i class="fa-solid fa-receipt text-slate-400"></i> ${item.id}
                         </button>
                     </td>
-                    <td class="p-3.5 text-slate-500">${item.date}</td>
+                    <td class="p-3.5 text-slate-500 whitespace-nowrap">${item.date}</td>
                     <td class="p-3.5 font-bold text-slate-800">${item.customerName}</td>
                     <td class="p-3.5 text-slate-600">${item.room}</td>
-                    <td class="p-3.5 text-slate-600 font-mono">${item.phone || '-'}</td>
+                    <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">${item.phone || '-'}</td>
                     <td class="p-3.5 text-slate-600 font-medium">${item.orderType}</td>
-                    <td class="p-3.5">
+                    <td class="p-3.5 whitespace-nowrap">
                         <select onchange="updateOrderStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
                             ${ORDER_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-3.5 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
-                    <td class="p-3.5">
+                    <td class="p-3.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">${formatRupiah(item.estimatedPrice)}</td>
+                    <td class="p-3.5 whitespace-nowrap">
                         <div class="flex items-center justify-center gap-1.5">
                             <button onclick="openChatModal('order', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all duration-300 hover:scale-110 flex items-center justify-center" title="Pratinjau / Salin Chat WA">
                                 <i class="fa-brands fa-whatsapp text-sm"></i>
@@ -779,7 +780,7 @@
 
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs" id="serviceTable">
+                            <table class="w-full text-left text-xs min-w-[800px]" id="serviceTable">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
                                         <th class="p-3.5">Kode Transaksi</th>
@@ -807,25 +808,25 @@
             if (servicesList.length === 0) return `<tr><td colspan="9" class="p-6 text-center text-slate-400">Belum ada data service.</td></tr>`;
             return servicesList.map(item => `
                 <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="p-3.5 font-mono font-bold text-amber-600">
+                    <td class="p-3.5 font-mono font-bold text-amber-600 whitespace-nowrap">
                         <button onclick="viewServiceDetail('${item.id}')" class="hover:underline flex items-center gap-1">
                             <i class="fa-solid fa-screwdriver-wrench text-slate-400"></i> ${item.id}
                         </button>
                     </td>
-                    <td class="p-3.5 text-slate-500">${item.date}</td>
+                    <td class="p-3.5 text-slate-500 whitespace-nowrap">${item.date}</td>
                     <td class="p-3.5 font-bold text-slate-800">${item.customerName}</td>
                     <td class="p-3.5 text-slate-600">${item.room}</td>
-                    <td class="p-3.5 text-slate-600 font-mono">${item.phone || '-'}</td>
-                    <td class="p-3.5 text-center font-bold text-slate-700">
+                    <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">${item.phone || '-'}</td>
+                    <td class="p-3.5 text-center font-bold text-slate-700 whitespace-nowrap">
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px]">${item.items ? item.items.length : 0} Item</span>
                     </td>
-                    <td class="p-3.5">
+                    <td class="p-3.5 whitespace-nowrap">
                         <select onchange="updateServiceStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
                             ${SERVICE_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-3.5 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
-                    <td class="p-3.5">
+                    <td class="p-3.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">${formatRupiah(item.estimatedPrice)}</td>
+                    <td class="p-3.5 whitespace-nowrap">
                         <div class="flex items-center justify-center gap-1.5">
                             <button onclick="openChatModal('service', '${item.id}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all duration-300 hover:scale-110 flex items-center justify-center" title="Pratinjau / Salin Chat WA">
                                 <i class="fa-brands fa-whatsapp text-sm"></i>
@@ -873,7 +874,7 @@
                             <span class="text-xs font-mono font-bold bg-blue-50 text-blue-800 px-2.5 py-0.5 rounded-full" id="countOrdInvoice">${appData.orders.length} Transaksi</span>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs">
+                            <table class="w-full text-left text-xs min-w-[700px]">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
                                         <th class="p-3">Kode Transaksi</th>
@@ -901,7 +902,7 @@
                             <span class="text-xs font-mono font-bold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full" id="countSvcInvoice">${appData.services.length} Transaksi</span>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs">
+                            <table class="w-full text-left text-xs min-w-[700px]">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
                                         <th class="p-3">Kode Transaksi</th>
@@ -929,17 +930,17 @@
                 const isFinished = item.progress === 4;
                 return `
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="p-3 font-mono font-bold text-blue-700">${item.id}</td>
-                        <td class="p-3 text-slate-500">${item.date}</td>
+                        <td class="p-3 font-mono font-bold text-blue-700 whitespace-nowrap">${item.id}</td>
+                        <td class="p-3 text-slate-500 whitespace-nowrap">${item.date}</td>
                         <td class="p-3 font-bold text-slate-800">${item.customerName}</td>
                         <td class="p-3 text-slate-600">${item.room}</td>
-                        <td class="p-3">
+                        <td class="p-3 whitespace-nowrap">
                             <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
                                 ${ORDER_STAGES[item.progress].title}
                             </span>
                         </td>
-                        <td class="p-3 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
-                        <td class="p-3">
+                        <td class="p-3 text-right font-mono font-bold text-slate-700 whitespace-nowrap">${formatRupiah(item.estimatedPrice)}</td>
+                        <td class="p-3 whitespace-nowrap">
                             <div class="flex items-center justify-center gap-2">
                                 <button onclick="generateDocument('invoice', 'order', '${item.id}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5" title="Buat Invoice">
                                     <i class="fa-solid fa-file-invoice"></i> Buat Invoice
@@ -963,17 +964,17 @@
                 const isFinished = item.progress === 3;
                 return `
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="p-3 font-mono font-bold text-amber-600">${item.id}</td>
-                        <td class="p-3 text-slate-500">${item.date}</td>
+                        <td class="p-3 font-mono font-bold text-amber-600 whitespace-nowrap">${item.id}</td>
+                        <td class="p-3 text-slate-500 whitespace-nowrap">${item.date}</td>
                         <td class="p-3 font-bold text-slate-800">${item.customerName}</td>
                         <td class="p-3 text-slate-600">${item.room}</td>
-                        <td class="p-3">
+                        <td class="p-3 whitespace-nowrap">
                             <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
                                 ${SERVICE_STAGES[item.progress].title}
                             </span>
                         </td>
-                        <td class="p-3 text-right font-mono font-bold text-slate-700">${formatRupiah(item.estimatedPrice)}</td>
-                        <td class="p-3">
+                        <td class="p-3 text-right font-mono font-bold text-slate-700 whitespace-nowrap">${formatRupiah(item.estimatedPrice)}</td>
+                        <td class="p-3 whitespace-nowrap">
                             <div class="flex items-center justify-center gap-2">
                                 <button onclick="generateDocument('invoice', 'service', '${item.id}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5" title="Buat Invoice">
                                     <i class="fa-solid fa-file-invoice"></i> Buat Invoice
@@ -1377,7 +1378,7 @@
         }
 
         // ==========================================
-        // CRUD MODALS & DATABASE ACTIONS (DENGAN NO. WA)
+        // CRUD MODALS & DATABASE ACTIONS (AMBL & SIMPAN)
         // ==========================================
         function openOrderModal(orderId = null) {
             const isEdit = !!orderId;
@@ -1499,31 +1500,43 @@
 
         async function saveOrderForm(e, editId) {
             e.preventDefault();
-            const payload = {
-                id: document.getElementById('ordId').value,
-                date: document.getElementById('ordDate').value || getTodayDateString(),
-                customer_name: document.getElementById('ordCustomer').value,
-                room: document.getElementById('ordRoom').value,
-                phone: document.getElementById('ordPhone').value,
-                order_type: document.getElementById('ordType').value,
-                estimated_price: parseInt(document.getElementById('ordPrice').value) || 0,
-                progress: 0,
-                excel_data: window.tempExcelParsed || []
+            const idVal = document.getElementById('ordId').value;
+            const dateVal = document.getElementById('ordDate').value || getTodayDateString();
+            const customerNameVal = document.getElementById('ordCustomer').value;
+            const roomVal = document.getElementById('ordRoom').value;
+            const phoneVal = document.getElementById('ordPhone').value;
+            const orderTypeVal = document.getElementById('ordType').value;
+            const priceVal = parseInt(document.getElementById('ordPrice').value) || 0;
+            const excelDataVal = window.tempExcelParsed || [];
+
+            // Payload untuk database (mengikuti nama kolom standar supabase)
+            const dbPayload = {
+                id: idVal,
+                date: dateVal,
+                customer_name: customerNameVal,
+                room: roomVal,
+                phone: phoneVal,
+                order_type: orderTypeVal,
+                estimated_price: priceVal,
+                excel_data: excelDataVal
             };
 
             if (supabaseClient) {
                 if (editId) {
-                    await supabaseClient.from('orders').update(payload).eq('id', editId);
+                    await supabaseClient.from('orders').update(dbPayload).eq('id', editId);
                 } else {
-                    await supabaseClient.from('orders').insert([payload]);
+                    dbPayload.progress = 0;
+                    await supabaseClient.from('orders').insert([dbPayload]);
                 }
                 await loadSupabaseData();
             } else {
                 if (editId) {
                     const idx = appData.orders.findIndex(o => o.id === editId);
-                    if (idx !== -1) appData.orders[idx] = { ...appData.orders[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, orderType: payload.order_type, estimatedPrice: payload.estimated_price, excelData: payload.excel_data };
+                    if (idx !== -1) {
+                        appData.orders[idx] = { ...appData.orders[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, excelData: excelDataVal };
+                    }
                 } else {
-                    appData.orders.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, orderType: payload.order_type, estimatedPrice: payload.estimated_price, progress: 0, excelData: payload.excel_data });
+                    appData.orders.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, progress: 0, excelData: excelDataVal });
                 }
                 renderApp();
             }
@@ -1664,32 +1677,43 @@
                 return;
             }
 
-            const payload = {
-                id: document.getElementById('svcId').value,
-                date: document.getElementById('svcDate').value || getTodayDateString(),
-                customer_name: document.getElementById('svcCustomer').value,
-                room: document.getElementById('svcRoom').value,
-                phone: document.getElementById('svcPhone').value,
-                kelengkapan: document.getElementById('svcKelengkapan').value,
-                notes: document.getElementById('svcNotes').value,
-                estimated_price: parseInt(document.getElementById('svcPrice').value) || 0,
-                progress: 0,
+            const idVal = document.getElementById('svcId').value;
+            const dateVal = document.getElementById('svcDate').value || getTodayDateString();
+            const customerNameVal = document.getElementById('svcCustomer').value;
+            const roomVal = document.getElementById('svcRoom').value;
+            const phoneVal = document.getElementById('svcPhone').value;
+            const kelengkapanVal = document.getElementById('svcKelengkapan').value;
+            const notesVal = document.getElementById('svcNotes').value;
+            const priceVal = parseInt(document.getElementById('svcPrice').value) || 0;
+
+            const dbPayload = {
+                id: idVal,
+                date: dateVal,
+                customer_name: customerNameVal,
+                room: roomVal,
+                phone: phoneVal,
+                kelengkapan: kelengkapanVal,
+                notes: notesVal,
+                estimated_price: priceVal,
                 items: items
             };
 
             if (supabaseClient) {
                 if (editId) {
-                    await supabaseClient.from('services').update(payload).eq('id', editId);
+                    await supabaseClient.from('services').update(dbPayload).eq('id', editId);
                 } else {
-                    await supabaseClient.from('services').insert([payload]);
+                    dbPayload.progress = 0;
+                    await supabaseClient.from('services').insert([dbPayload]);
                 }
                 await loadSupabaseData();
             } else {
                 if (editId) {
                     const idx = appData.services.findIndex(s => s.id === editId);
-                    if (idx !== -1) appData.services[idx] = { ...appData.services[idx], date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, items: payload.items };
+                    if (idx !== -1) {
+                        appData.services[idx] = { ...appData.services[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, items: items };
+                    }
                 } else {
-                    appData.services.unshift({ id: payload.id, date: payload.date, customerName: payload.customer_name, room: payload.room, phone: payload.phone, kelengkapan: payload.kelengkapan, notes: payload.notes, estimatedPrice: payload.estimated_price, progress: 0, items: payload.items });
+                    appData.services.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, progress: 0, items: items });
                 }
                 renderApp();
             }
@@ -1728,7 +1752,7 @@
         }
 
         // ==========================================
-        // CHAT WA PREVIEW & COPY MODAL (OTOMATIS NOMOR HP)
+        // CHAT WA PREVIEW & COPY MODAL
         // ==========================================
         function openChatModal(type, id) {
             let messageText = '';
@@ -1775,7 +1799,6 @@
                     `https://tracking-service-dcc.vercel.app/`;
             }
 
-            // Format nomor HP ke standar internasional (ubah 08... jadi 628...)
             let formattedPhone = customerPhone.replace(/[^0-9]/g, '');
             if (formattedPhone.startsWith('0')) {
                 formattedPhone = '62' + formattedPhone.substring(1);
