@@ -94,7 +94,7 @@
                 width: 210mm;
                 height: 297mm;
                 margin: 0;
-                padding: 15mm;
+                padding: 12mm 15mm;
                 background: white !important;
                 color: black !important;
                 box-shadow: none !important;
@@ -282,29 +282,33 @@
 
         function terbilang(nilai) {
             const angka = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
-            let temp = "";
-            let n = Math.abs(nilai);
+            let n = Math.floor(Math.abs(nilai));
+            if (n === 0) return "Nol Rupiah";
 
-            if (n < 12) {
-                temp = " " + angka[n];
-            } else if (n < 20) {
-                temp = terbilang(n - 10) + " Belas";
-            } else if (n < 100) {
-                temp = terbilang(Math.floor(n / 10)) + " Puluh" + terbilang(n % 10);
-            } else if (n < 200) {
-                temp = " Seratus" + terbilang(n - 100);
-            } else if (n < 1000) {
-                temp = terbilang(Math.floor(n / 100)) + " Ratus" + terbilang(n % 100);
-            } else if (n < 2000) {
-                temp = " Seribu" + terbilang(n - 1000);
-            } else if (n < 1000000) {
-                temp = terbilang(Math.floor(n / 1000)) + " Ribu" + terbilang(n % 1000);
-            } else if (n < 1000000000) {
-                temp = terbilang(Math.floor(n / 1000000)) + " Juta" + terbilang(n % 1000000);
-            } else if (n < 1000000000000) {
-                temp = terbilang(Math.floor(n / 1000000000)) + " Milyar" + terbilang(n % 1000000000);
+            function convert(num) {
+                if (num < 12) {
+                    return " " + angka[num];
+                } else if (num < 20) {
+                    return convert(num - 10) + " Belas";
+                } else if (num < 100) {
+                    return convert(Math.floor(num / 10)) + " Puluh" + convert(num % 10);
+                } else if (num < 200) {
+                    return " Seratus" + convert(num - 100);
+                } else if (num < 1000) {
+                    return convert(Math.floor(num / 100)) + " Ratus" + convert(num % 100);
+                } else if (num < 2000) {
+                    return " Seribu" + convert(num - 1000);
+                } else if (num < 1000000) {
+                    return convert(Math.floor(num / 1000)) + " Ribu" + convert(num % 1000);
+                } else if (num < 1000000000) {
+                    return convert(Math.floor(num / 1000000)) + " Juta" + convert(num % 1000000);
+                } else if (num < 1000000000000) {
+                    return convert(Math.floor(num / 1000000000)) + " Milyar" + convert(num % 1000000000);
+                }
+                return "";
             }
-            return temp.trim() + " Rupiah";
+
+            return convert(n).trim() + " Rupiah";
         }
 
         function showToast(message, type = 'info') {
@@ -1147,45 +1151,46 @@
 
             if (isOrder) {
                 if (dataItem.excelData && dataItem.excelData.length > 0) {
-                    tableItemsHtml = dataItem.excelData.map((it, idx) => `
+                    tableItemsHtml = dataItem.excelData.map((it) => `
                         <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 5px 8px; text-align: left; font-weight: bold;">${it.component}</td>
-                            <td style="padding: 5px 8px; text-align: left; color: #475569;">${it.spec}</td>
-                            <td style="padding: 5px 8px; text-align: center;">${it.qty}</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${formatRupiah(it.price)}</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(it.qty * it.price)}</td>
+                            <td style="padding: 6px 8px; text-align: left; font-weight: bold;">${it.component}</td>
+                            <td style="padding: 6px 8px; text-align: left; color: #475569;">${it.spec}</td>
+                            <td style="padding: 6px 8px; text-align: center;">${it.qty}</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace;">${formatRupiah(it.price)}</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(it.qty * it.price)}</td>
                         </tr>
                     `).join('');
                 } else {
                     tableItemsHtml = `
                         <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 5px 8px; text-align: left; font-weight: bold;">${dataItem.orderType}</td>
-                            <td style="padding: 5px 8px; text-align: left; color: #475569;">Paket Pemesanan ${dataItem.orderType}</td>
-                            <td style="padding: 5px 8px; text-align: center;">1</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${formatRupiah(subtotal)}</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(subtotal)}</td>
+                            <td style="padding: 6px 8px; text-align: left; font-weight: bold;">${dataItem.orderType}</td>
+                            <td style="padding: 6px 8px; text-align: left; color: #475569;">Paket Pemesanan ${dataItem.orderType}</td>
+                            <td style="padding: 6px 8px; text-align: center;">1</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace;">${formatRupiah(subtotal)}</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(subtotal)}</td>
                         </tr>
                     `;
                 }
             } else {
                 if (dataItem.items && dataItem.items.length > 0) {
-                    tableItemsHtml = dataItem.items.map((it, idx) => `
+                    const pricePerItem = Math.round(subtotal / dataItem.items.length);
+                    tableItemsHtml = dataItem.items.map((it) => `
                         <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 5px 8px; text-align: left; font-weight: bold;">${it.name}</td>
-                            <td style="padding: 5px 8px; text-align: left; color: #475569;">Kendala: ${it.issue}</td>
-                            <td style="padding: 5px 8px; text-align: center;">1</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${formatRupiah(subtotal / dataItem.items.length)}</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(subtotal / dataItem.items.length)}</td>
+                            <td style="padding: 6px 8px; text-align: left; font-weight: bold;">${it.name}</td>
+                            <td style="padding: 6px 8px; text-align: left; color: #475569;">Kendala: ${it.issue}</td>
+                            <td style="padding: 6px 8px; text-align: center;">1</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace;">${formatRupiah(pricePerItem)}</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(pricePerItem)}</td>
                         </tr>
                     `).join('');
                 } else {
                     tableItemsHtml = `
                         <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 5px 8px; text-align: left; font-weight: bold;">Jasa Service</td>
-                            <td style="padding: 5px 8px; text-align: left; color: #475569;">Perbaikan Unit Hardware / Software</td>
-                            <td style="padding: 5px 8px; text-align: center;">1</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace;">${formatRupiah(subtotal)}</td>
-                            <td style="padding: 5px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(subtotal)}</td>
+                            <td style="padding: 6px 8px; text-align: left; font-weight: bold;">Jasa Service</td>
+                            <td style="padding: 6px 8px; text-align: left; color: #475569;">Perbaikan Unit Hardware / Software</td>
+                            <td style="padding: 6px 8px; text-align: center;">1</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace;">${formatRupiah(subtotal)}</td>
+                            <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: bold;">${formatRupiah(subtotal)}</td>
                         </tr>
                     `;
                 }
@@ -1211,9 +1216,9 @@
                         </div>
                     </div>
 
-                    <!-- Dokumen Siap Cetak Ukuran A4 -->
+                    <!-- Dokumen Siap Cetak Ukuran A4 (Pas di 1 Halaman) -->
                     <div class="bg-slate-100 p-4 rounded-2xl overflow-x-auto flex justify-center">
-                        <div id="printablePaper" class="bg-white p-8 text-slate-800 text-[11px] shadow-lg border border-slate-200" style="width: 210mm; min-height: 297mm; box-sizing: border-box; color: #1e293b; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div id="printablePaper" class="bg-white text-slate-800 text-[11px] shadow-lg border border-slate-200" style="width: 210mm; height: 297mm; padding: 12mm 15mm; box-sizing: border-box; color: #1e293b; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
                             ${docContent}
                         </div>
                     </div>
@@ -1225,38 +1230,37 @@
             return `
                 <div>
                     <!-- Kop Perusahaan -->
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; border-bottom: 2px solid #0058c4; padding-bottom: 12px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <img src="DCSC.png" alt="Logo" style="width: 50px; height: 50px; object-fit: contain;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 2px solid #0058c4; padding-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="DCSC.png" alt="Logo" style="width: 45px; height: 45px; object-fit: contain;" onerror="this.style.display='none'">
                             <div>
-                                <h2 style="font-size: 16px; font-weight: 800; color: #003b87; margin: 0;">${COMPANY_INFO.name}</h2>
-                                <p style="font-size: 9px; color: #64748b; margin: 2px 0 0 0;">Telp: ${COMPANY_INFO.phone}</p>
-                                <p style="font-size: 9px; color: #64748b; margin: 0;">Email: ${COMPANY_INFO.email}</p>
+                                <h2 style="font-size: 15px; font-weight: 800; color: #003b87; margin: 0;">${COMPANY_INFO.name}</h2>
+                                <p style="font-size: 9px; color: #64748b; margin: 2px 0 0 0;">Telp: ${COMPANY_INFO.phone} | Email: ${COMPANY_INFO.email}</p>
                             </div>
                         </div>
                         <div style="text-align: right;">
-                            <h1 style="font-size: 20px; font-weight: 900; color: #0058c4; margin: 0; text-transform: uppercase; letter-spacing: 1px;">INVOICE</h1>
-                            <p style="font-size: 10px; font-family: monospace; font-weight: bold; color: #334155; margin-top: 3px;">Referensi: INV/${dataItem.id}</p>
+                            <h1 style="font-size: 18px; font-weight: 900; color: #0058c4; margin: 0; text-transform: uppercase; letter-spacing: 1px;">INVOICE</h1>
+                            <p style="font-size: 10px; font-family: monospace; font-weight: bold; color: #334155; margin-top: 2px;">Referensi: INV/${dataItem.id}</p>
                             <p style="font-size: 9px; color: #64748b; margin: 0;">Tanggal: ${dataItem.date}</p>
                         </div>
                     </div>
 
                     <!-- Tagihan Untuk -->
-                    <div style="margin-bottom: 14px; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <div style="margin-bottom: 12px; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <span style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b;">Tagihan Untuk:</span>
-                        <h3 style="font-size: 13px; font-weight: 800; color: #0f172a; margin: 2px 0 0 0;">${dataItem.customerName}</h3>
-                        <p style="font-size: 10px; color: #334155; margin: 0;">Kamar / Lokasi: ${dataItem.room} ${dataItem.phone ? `| No. WA: ${dataItem.phone}` : ''}</p>
+                        <h3 style="font-size: 12px; font-weight: 800; color: #0f172a; margin: 2px 0 0 0;">${dataItem.customerName}</h3>
+                        <p style="font-size: 9.5px; color: #334155; margin: 0;">Kamar / Lokasi: ${dataItem.room} ${dataItem.phone ? `| No. WA: ${dataItem.phone}` : ''}</p>
                     </div>
 
-                    <!-- Tabel Produk (Tanpa Diskon) -->
-                    <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 14px;">
+                    <!-- Tabel Produk -->
+                    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 10px;">
                         <thead>
-                            <tr style="background: #003b87; color: white; text-transform: uppercase; font-size: 9px;">
-                                <th style="padding: 6px 8px; text-align: left;">Produk</th>
-                                <th style="padding: 6px 8px; text-align: left;">Deskripsi</th>
-                                <th style="padding: 6px 8px; text-align: center; width: 45px;">Qty</th>
-                                <th style="padding: 6px 8px; text-align: right; width: 110px;">Harga (Rp)</th>
-                                <th style="padding: 6px 8px; text-align: right; width: 120px;">Jumlah (Rp)</th>
+                            <tr style="background: #003b87; color: white; text-transform: uppercase; font-size: 8.5px;">
+                                <th style="padding: 5px 7px; text-align: left;">Produk</th>
+                                <th style="padding: 5px 7px; text-align: left;">Deskripsi</th>
+                                <th style="padding: 5px 7px; text-align: center; width: 40px;">Qty</th>
+                                <th style="padding: 5px 7px; text-align: right; width: 100px;">Harga (Rp)</th>
+                                <th style="padding: 5px 7px; text-align: right; width: 110px;">Jumlah (Rp)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1265,17 +1269,17 @@
                     </table>
 
                     <!-- Calculation Totals -->
-                    <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-                        <div style="width: 240px; font-size: 11px;">
-                            <div style="display: flex; justify-content: space-between; padding: 3px 0;">
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                        <div style="width: 220px; font-size: 10.5px;">
+                            <div style="display: flex; justify-content: space-between; padding: 2px 0;">
                                 <span style="color: #475569;">Subtotal:</span>
                                 <span style="font-family: monospace; font-weight: bold;">${formatRupiah(subtotal)}</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #e2e8f0;">
                                 <span style="color: #475569;">Pajak:</span>
                                 <span style="font-family: monospace;">Rp 0</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-weight: 800; font-size: 12.5px; color: #003b87;">
+                            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-weight: 800; font-size: 12px; color: #003b87;">
                                 <span>Total Tagihan:</span>
                                 <span style="font-family: monospace;">${formatRupiah(subtotal)}</span>
                             </div>
@@ -1285,21 +1289,20 @@
 
                 <!-- Footer Keterangan & Tanda Tangan -->
                 <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #cbd5e1; padding-top: 14px; margin-top: auto;">
-                        <div style="max-width: 340px; font-size: 9px; color: #475569; line-height: 1.4;">
-                            <strong style="color: #1e293b; display: block; margin-bottom: 2px;">Keterangan:</strong>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #cbd5e1; padding-top: 10px;">
+                        <div style="max-width: 320px; font-size: 8.5px; color: #475569; line-height: 1.3;">
+                            <strong style="color: #1e293b; display: block; margin-bottom: 1px;">Keterangan:</strong>
                             <p style="margin: 0;">${COMPANY_INFO.address}</p>
-                            <p style="margin-top: 4px; font-style: italic;">${documentTemplates.invoiceNote}</p>
-                            <p style="margin-top: 4px;">Whatsapp: +62 ${COMPANY_INFO.phone} | Instagram: @dccgontor1</p>
+                            <p style="margin-top: 3px; font-style: italic;">${documentTemplates.invoiceNote}</p>
                         </div>
-                        <div style="text-align: center; position: relative; width: 160px;">
-                            <p style="font-size: 10px; color: #475569; margin-bottom: 6px;">Ponorogo, ${dataItem.date}</p>
-                            <div style="height: 55px; display: flex; align-items: center; justify-content: center; position: relative;">
-                                ${documentTemplates.stampImg ? `<img src="${documentTemplates.stampImg}" style="position: absolute; width: 60px; height: 60px; opacity: 0.75; object-fit: contain; left: 10px; top: -5px;">` : ''}
-                                ${documentTemplates.signatureImg ? `<img src="${documentTemplates.signatureImg}" style="max-height: 50px; z-index: 10; object-fit: contain;">` : ''}
+                        <div style="text-align: center; position: relative; width: 150px;">
+                            <p style="font-size: 9.5px; color: #475569; margin-bottom: 4px;">Ponorogo, ${dataItem.date}</p>
+                            <div style="height: 45px; display: flex; align-items: center; justify-content: center; position: relative;">
+                                ${documentTemplates.stampImg ? `<img src="${documentTemplates.stampImg}" style="position: absolute; width: 50px; height: 50px; opacity: 0.75; object-fit: contain; left: 10px; top: -5px;">` : ''}
+                                ${documentTemplates.signatureImg ? `<img src="${documentTemplates.signatureImg}" style="max-height: 40px; z-index: 10; object-fit: contain;">` : ''}
                             </div>
-                            <strong style="font-size: 11px; text-decoration: underline; display: block; margin-top: 4px; color: #0f172a;">${documentTemplates.signerName}</strong>
-                            <span style="font-size: 9px; color: #64748b;">${documentTemplates.signerTitle}</span>
+                            <strong style="font-size: 10px; text-decoration: underline; display: block; margin-top: 2px; color: #0f172a;">${documentTemplates.signerName}</strong>
+                            <span style="font-size: 8.5px; color: #64748b;">${documentTemplates.signerTitle}</span>
                         </div>
                     </div>
                 </div>
@@ -1310,34 +1313,34 @@
             const terbilangTeks = terbilang(subtotal);
             return `
                 <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 2px solid #059669; padding-bottom: 12px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <img src="DCSC.png" alt="Logo" style="width: 50px; height: 50px; object-fit: contain;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 2px solid #059669; padding-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="DCSC.png" alt="Logo" style="width: 45px; height: 45px; object-fit: contain;" onerror="this.style.display='none'">
                             <div>
-                                <h2 style="font-size: 16px; font-weight: 800; color: #065f46; margin: 0;">${COMPANY_INFO.name}</h2>
+                                <h2 style="font-size: 15px; font-weight: 800; color: #065f46; margin: 0;">${COMPANY_INFO.name}</h2>
                                 <p style="font-size: 9px; color: #64748b; margin: 0;">Telp: ${COMPANY_INFO.phone} | Email: ${COMPANY_INFO.email}</p>
                             </div>
                         </div>
                         <div style="text-align: right;">
-                            <h1 style="font-size: 20px; font-weight: 900; color: #059669; margin: 0; text-transform: uppercase; letter-spacing: 1px;">KWITANSI</h1>
+                            <h1 style="font-size: 18px; font-weight: 900; color: #059669; margin: 0; text-transform: uppercase; letter-spacing: 1px;">KWITANSI</h1>
                             <p style="font-size: 10px; font-family: monospace; font-weight: bold; color: #334155; margin: 2px 0 0 0;">Payment No: PYI/${dataItem.id}</p>
                             <p style="font-size: 9px; font-family: monospace; color: #64748b; margin: 0;">Invoice No: INV/${dataItem.id}</p>
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 24px; font-size: 11.5px;">
-                        <div style="display: flex; border-bottom: 1px dashed #cbd5e1; padding: 10px 0;">
-                            <span style="width: 150px; font-weight: bold; color: #475569;">Telah Terima Dari</span>
+                    <div style="margin-bottom: 20px; font-size: 11px;">
+                        <div style="display: flex; border-bottom: 1px dashed #cbd5e1; padding: 8px 0;">
+                            <span style="width: 140px; font-weight: bold; color: #475569;">Telah Terima Dari</span>
                             <span style="width: 15px;">:</span>
                             <span style="font-weight: 800; color: #0f172a;">${dataItem.customerName} (${dataItem.room})</span>
                         </div>
-                        <div style="display: flex; border-bottom: 1px dashed #cbd5e1; padding: 10px 0; background: #f0fdf4; border-radius: 6px; padding-left: 6px;">
-                            <span style="width: 144px; font-weight: bold; color: #065f46;">Banyaknya Uang</span>
+                        <div style="display: flex; border-bottom: 1px dashed #cbd5e1; padding: 8px 0; background: #f0fdf4; border-radius: 6px; padding-left: 6px;">
+                            <span style="width: 134px; font-weight: bold; color: #065f46;">Banyaknya Uang</span>
                             <span style="width: 15px;">:</span>
                             <span style="font-weight: 800; color: #065f46; font-style: italic;">${terbilangTeks}</span>
                         </div>
-                        <div style="display: flex; border-bottom: 1px dashed #cbd5e1; padding: 10px 0;">
-                            <span style="width: 150px; font-weight: bold; color: #475569;">Untuk Pembayaran</span>
+                        <div style="display: flex; border-bottom: 1px dashed #cbd5e1; padding: 8px 0;">
+                            <span style="width: 140px; font-weight: bold; color: #475569;">Untuk Pembayaran</span>
                             <span style="width: 15px;">:</span>
                             <span>Pelunasan Tagihan Transaksi <strong>${dataItem.id}</strong> (${dataItem.orderType || 'Jasa Service/Perbaikan'})</span>
                         </div>
@@ -1345,20 +1348,20 @@
                 </div>
 
                 <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 20px; margin-top: auto;">
-                        <div style="background: #059669; color: white; padding: 12px 20px; border-radius: 12px; display: inline-block;">
-                            <span style="font-size: 9px; display: block; text-transform: uppercase; font-weight: 600; opacity: 0.9;">Jumlah Nominal:</span>
-                            <strong style="font-size: 17px; font-family: monospace;">${formatRupiah(subtotal)}</strong>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 14px;">
+                        <div style="background: #059669; color: white; padding: 10px 16px; border-radius: 10px; display: inline-block;">
+                            <span style="font-size: 8.5px; display: block; text-transform: uppercase; font-weight: 600; opacity: 0.9;">Jumlah Nominal:</span>
+                            <strong style="font-size: 16px; font-family: monospace;">${formatRupiah(subtotal)}</strong>
                         </div>
 
-                        <div style="text-align: center; position: relative; width: 160px;">
-                            <p style="font-size: 10px; color: #475569; margin-bottom: 6px;">Ponorogo, ${dataItem.date}</p>
-                            <div style="height: 55px; display: flex; align-items: center; justify-content: center; position: relative;">
-                                ${documentTemplates.stampImg ? `<img src="${documentTemplates.stampImg}" style="position: absolute; width: 60px; height: 60px; opacity: 0.75; object-fit: contain; left: 10px; top: -5px;">` : ''}
-                                ${documentTemplates.signatureImg ? `<img src="${documentTemplates.signatureImg}" style="max-height: 50px; z-index: 10; object-fit: contain;">` : ''}
+                        <div style="text-align: center; position: relative; width: 150px;">
+                            <p style="font-size: 9.5px; color: #475569; margin-bottom: 4px;">Ponorogo, ${dataItem.date}</p>
+                            <div style="height: 45px; display: flex; align-items: center; justify-content: center; position: relative;">
+                                ${documentTemplates.stampImg ? `<img src="${documentTemplates.stampImg}" style="position: absolute; width: 50px; height: 50px; opacity: 0.75; object-fit: contain; left: 10px; top: -5px;">` : ''}
+                                ${documentTemplates.signatureImg ? `<img src="${documentTemplates.signatureImg}" style="max-height: 40px; z-index: 10; object-fit: contain;">` : ''}
                             </div>
-                            <strong style="font-size: 11px; text-decoration: underline; display: block; margin-top: 4px; color: #0f172a;">${documentTemplates.signerName}</strong>
-                            <span style="font-size: 9px; color: #64748b;">${documentTemplates.signerTitle}</span>
+                            <strong style="font-size: 10px; text-decoration: underline; display: block; margin-top: 2px; color: #0f172a;">${documentTemplates.signerName}</strong>
+                            <span style="font-size: 8.5px; color: #64748b;">${documentTemplates.signerTitle}</span>
                         </div>
                     </div>
                 </div>
