@@ -2539,19 +2539,21 @@ async function posCheckout(){
   const items=POS.cart.map(c=>{const o={name:c.name,qty:c.qty,price:c.price,type:c.type};if(c.ref){o.ref=c.ref;if(costTx)o.costTx=costTx;}if(c.sub&&c.sub.length)o.sub=c.sub;return o;});
   const c=await finClient.from('pos_sales').insert([{account:s.account,date,items,subtotal:sub,discount:disc,total,paid,change:paid-total,pay_method:method,cash_type:kas,cashier:s.cashier,transaction_id:txId}]).select();
   if(c.error||!c.data||!c.data.length)throw new Error(c.error?c.error.message:'database tidak merespons');
-  POS.last={id:c.data[0].id,at:new Date(c.data[0].created_at||Date.now()),items,subtotal:sub,discount:disc,total,paid,change:paid-total,method};
+  POS.last={id:c.data[0].id,at:new Date(c.data[0].created_at||Date.now()),items,subtotal:sub,discount:disc,total,paid,change:paid-total,method,cashier:s.cashier};
   items.forEach(i=>{if(i.ref)POS.paid.add(i.ref);});
  }catch(err){await undo().catch(()=>{});alert('Transaksi GAGAL disimpan: '+err.message+'\n\nJika pesan menyebut tabel pos_sales, jalankan migrasi_kasir.sql.');posClose();return;}
  POS.cart=[];POS.discount=0;POS.q='';await posLoad();posLast(true);}
 
 // ---------- Struk ----------
+const POS_CFG_KEYS=['store','addr','phone','footer','showLogo'];
+function posCfg(sale,k){return (sale&&sale.cfg&&sale.cfg[k]!=null)?sale.cfg[k]:POS.s[k];}
 function posReceiptNo(s){return String(s.at.getFullYear()).slice(2)+'-200-'+String(s.id).padStart(6,'0');}
 function posReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String(n).padStart(2,'0');
  const wrap=(t,w)=>{w=w||c;const o=[];let l='';String(t).split(' ').forEach(x=>{while(x.length>w){if(l){o.push(l);l='';}o.push(x.slice(0,w));x=x.slice(w);}if((l+' '+x).trim().length>w){o.push(l);l=x;}else l=(l+' '+x).trim();});if(l)o.push(l);return o;};
  const ctr=t=>' '.repeat(Math.max(0,Math.floor((c-t.length)/2)))+t,lr=(l,r)=>{l=String(l);r=String(r);return l.length+r.length+1>c?l.slice(0,Math.max(0,c-r.length-1))+' '+r:l+' '.repeat(c-l.length-r.length)+r;},R=n=>'Rp'+Math.round(n).toLocaleString('id-ID');
  const add=(t,b)=>L.push({t,b:!!b}),line=ch=>add(ch.repeat(c)),d=sale.at;
  // Kepala toko
- wrap(POS.s.store).forEach(x=>add(ctr(x),1));wrap(POS.s.addr).forEach(x=>add(ctr(x)));if(POS.s.phone)add(ctr('Telp. '+POS.s.phone));
+ wrap(posCfg(sale,'store')).forEach(x=>add(ctr(x),1));wrap(posCfg(sale,'addr')).forEach(x=>add(ctr(x)));if(posCfg(sale,'phone'))add(ctr('Telp. '+posCfg(sale,'phone')));
  line('=');
  if(sale.reprint){add(ctr('*** CETAK ULANG ***'),1);add(ctr('(SALINAN STRUK)'));line('-');}
  // Info transaksi
@@ -2571,9 +2573,9 @@ function posReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String
  // Pembayaran
  add(lr(sale.method==='cash'?'Tunai':'Non-tunai',R(sale.paid)));
  if(sale.change>0)add(lr('Kembali',R(sale.change)),1);
- add('');add(ctr('TERIMA KASIH'),1);wrap(POS.s.footer).forEach(x=>add(ctr(x)));return L;}
+ add('');add(ctr('TERIMA KASIH'),1);wrap(posCfg(sale,'footer')).forEach(x=>add(ctr(x)));return L;}
 function posReceiptHtml(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
- const logo=POS.s.showLogo!==false?`<img src="${POS_LOGO}" alt="" style="display:block;margin:0 auto 8px;width:24mm;height:auto">`:'';
+ const logo=posCfg(sale,'showLogo')!==false?`<img src="${POS_LOGO}" alt="" style="display:block;margin:0 auto 8px;width:24mm;height:auto">`:'';
  return `<div id="posReceiptPrint" class="pos-rcpt" style="--cols:${c};box-sizing:content-box;background:#fff;color:#000;width:${c}ch;padding:10px 12px;font:12px/1.35 'Courier New',Courier,monospace">${logo}<pre style="margin:0;font:inherit;white-space:pre">${L.map(x=>(x.b?'<b>':'')+pe(x.t)+(x.b?'</b>':'')).join('\n')}</pre></div>`;}
 function posLast(auto,sale){const s=sale||POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}POS.cur=s;
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${s.reprint?'<i class="fa-solid fa-print text-[#003b87]"></i> Cetak Ulang Struk':auto?'<i class="fa-solid fa-circle-check text-emerald-500"></i> Transaksi Tersimpan':'Struk Terakhir'}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
@@ -2584,7 +2586,7 @@ function posLast(auto,sale){const s=sale||POS.last;if(!s){alert('Belum ada trans
   ${s.reprint?`<button onclick="posClose()" class="w-full ${BTN}bg-slate-100 text-slate-700">Tutup</button>`:`<button onclick="posClose();posNew()" class="w-full ${BTN}bg-slate-100 text-slate-700">Selesai / Transaksi Baru</button>`}`);
  if(auto&&(POS.printer||POS.s.remote!==false))posPrintDirect(s);}
 function posPrintDoc(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
- const logo=POS.s.showLogo!==false?`<img src="${POS_LOGO}" alt="">`:'';
+ const logo=posCfg(sale,'showLogo')!==false?`<img src="${POS_LOGO}" alt="">`:'';
  return `<!doctype html><html><head><meta charset="utf-8"><title>Struk ${pe(posReceiptNo(sale))}</title><style>
 @page{margin:0}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -2609,10 +2611,11 @@ function posLogoBytes(){return new Promise(res=>{try{const im=new Image();
    for(let y=y0;y<y0+h;y++)for(let bx=0;bx<wb;bx++){let b=0;for(let k=0;k<8;k++){const p=(y*W+bx*8+k)*4,lum=.299*px[p]+.587*px[p+1]+.114*px[p+2];if(lum<128)b|=0x80>>k;}out.push(b);}}
   res(out);}catch(e){res([]);}};
  im.onerror=()=>res([]);im.src=POS_LOGO;}catch(e){res([]);}});}
-async function posBytes(L){const o=[0x1B,0x40],enc=t=>[...t].map(ch=>ch.charCodeAt(0)<128?ch.charCodeAt(0):63);
- if(POS.s.showLogo!==false){const lg=await posLogoBytes();if(lg.length){o.push(0x1B,0x61,1);for(let i=0;i<lg.length;i++)o.push(lg[i]);o.push(0x1B,0x61,0,0x0A);}}
+async function posBytes(L,sale){const o=[0x1B,0x40],enc=t=>[...t].map(ch=>ch.charCodeAt(0)<128?ch.charCodeAt(0):63);
+ if(posCfg(sale,'showLogo')!==false){const lg=await posLogoBytes();if(lg.length){o.push(0x1B,0x61,1);for(let i=0;i<lg.length;i++)o.push(lg[i]);o.push(0x1B,0x61,0,0x0A);}}
  L.forEach(x=>{if(x.b)o.push(0x1B,0x45,1);o.push(...enc(x.t),0x0A);if(x.b)o.push(0x1B,0x45,0);});o.push(0x1B,0x64,3);return new Uint8Array(o);}
-function posSalePayload(sale){return JSON.parse(JSON.stringify({...sale,at:sale.at instanceof Date?sale.at.toISOString():sale.at}));}
+function posSalePayload(sale){const cfg=sale.cfg||{};POS_CFG_KEYS.forEach(k=>{if(cfg[k]==null)cfg[k]=POS.s[k];});
+ return JSON.parse(JSON.stringify({...sale,cashier:sale.cashier||POS.s.cashier,cfg,at:sale.at instanceof Date?sale.at.toISOString():sale.at}));}
 function posDevice(){return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)?'HP':'PC';}
 function posWho(){return (POS.s.cashier||'')+' ('+posDevice()+')';}
 // Cetak Langsung: printer lokal bila ada, jika tidak otomatis dikirim ke PC printer lewat antrian sinkron
@@ -2620,7 +2623,7 @@ async function posPrintDirect(sale){sale=sale||POS.cur||POS.last;
  if(!sale){alert('Belum ada struk.');return;}
  if(!POS.printer)return posSendRemote(sale);
  let err='';
- try{await POS.printer.write(await posBytes(posReceipt(sale)));}catch(e){err=e.message||String(e);alert('Gagal mencetak: '+err);}
+ try{await POS.printer.write(await posBytes(posReceipt(sale),sale));}catch(e){err=e.message||String(e);alert('Gagal mencetak: '+err);}
  // catat ke antrian agar semua perangkat melihat riwayat cetak yang sama
  try{if(finClient)await finClient.from('print_jobs').insert([{account:POS.s.account,payload:posSalePayload(sale),requested_by:posWho(),status:err?'error':'done',station:posWho()+' (lokal)',error:err||null,printed_at:err?null:new Date().toISOString()}]);}catch(e){}
  posQueueLoad();}
@@ -2730,7 +2733,7 @@ async function posStationRun(){
    const c=await finClient.from('print_jobs').update({status:'printing',station:(POS.s.cashier||'')+' ('+posDevice()+' stasiun)'}).eq('id',j.id).eq('status','pending').select();
    if(!c.data||!c.data.length)continue; // sudah diambil stasiun lain
    try{const sale={...j.payload,at:new Date(j.payload.at)};
-    await POS.printer.write(await posBytes(posReceipt(sale)));
+    await POS.printer.write(await posBytes(posReceipt(sale),sale));
     await finClient.from('print_jobs').update({status:'done',printed_at:new Date().toISOString()}).eq('id',j.id);
     showToast('Struk dari '+(j.requested_by||'perangkat lain')+' dicetak.','success');
    }catch(e){await finClient.from('print_jobs').update({status:'error',error:String(e.message).slice(0,200)}).eq('id',j.id);}
