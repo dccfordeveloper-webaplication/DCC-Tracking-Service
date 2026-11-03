@@ -221,6 +221,7 @@
                         phone: o.phone || '',
                         orderType: o.order_type, 
                         estimatedPrice: o.estimated_price, 
+                        costPrice: Number(o.cost_price) || 0,
                         progress: o.progress ?? 0, 
                         excelData: o.excel_data || []
                     }));
@@ -235,6 +236,7 @@
                         kelengkapan: s.kelengkapan || '', 
                         notes: s.notes || '', 
                         estimatedPrice: s.estimated_price, 
+                        costPrice: Number(s.cost_price) || 0,
                         progress: s.progress ?? 0, 
                         items: s.items || []
                     }));
@@ -1476,6 +1478,21 @@
         // ==========================================
         // CRUD MODALS & DATABASE ACTIONS
         // ==========================================
+        // Ringkasan keuntungan = harga/biaya - beban biaya (hanya keuntungan yang masuk Pemasukan saat dibayar di Kasir)
+        function updProfit(priceId, costId, infoId) {
+            const el = document.getElementById(infoId);
+            if (!el) return;
+            const price = parseFloat((document.getElementById(priceId) || {}).value) || 0;
+            const cost = parseFloat((document.getElementById(costId) || {}).value) || 0;
+            const profit = price - cost;
+            const bad = price > 0 && cost > 0 && cost >= price;
+            el.className = 'grid grid-cols-2 gap-3 p-3 rounded-xl border text-[11px] ' + (bad ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200');
+            el.innerHTML = `
+                <div><span class="block text-slate-500">Keuntungan <b>(masuk Pemasukan)</b></span><span class="font-mono font-extrabold text-sm ${bad ? 'text-rose-600' : 'text-emerald-700'}">${formatRupiah(profit)}</span></div>
+                <div><span class="block text-slate-500">Beban biaya <b>(masuk Pengeluaran)</b></span><span class="font-mono font-extrabold text-sm text-slate-700">${formatRupiah(cost)}</span></div>
+                ${bad ? '<div class="col-span-2 text-rose-600 font-semibold">Beban biaya harus lebih kecil dari harga/biaya.</div>' : ''}`;
+        }
+
         function openOrderModal(orderId = null) {
             const isEdit = !!orderId;
             const record = isEdit ? appData.orders.find(o => o.id === orderId) : null;
@@ -1536,12 +1553,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Estimasi Total Harga (Rp) <span id="ordPriceHint" class="font-medium text-emerald-600"></span></label>
-                                <input type="number" id="ordPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
+                                <input type="number" id="ordPrice" value="${isEdit ? record.estimatedPrice : 0}" oninput="updProfit('ordPrice','ordCost','ordProfitInfo')" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
-                            <div class="flex items-end">
-                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">Simpan Pesanan</button>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Beban Biaya / Harga Beli (Rp) <span class="font-medium text-rose-500">(modal)</span></label>
+                                <input type="number" min="0" id="ordCost" value="${isEdit && record.costPrice ? record.costPrice : 0}" oninput="updProfit('ordPrice','ordCost','ordProfitInfo')" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                         </div>
+                        <div id="ordProfitInfo"></div>
+                        <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">Simpan Pesanan</button>
                     </form>
                 </div>
             `);
@@ -1644,6 +1664,7 @@
                 el.classList.remove('bg-slate-100');
                 if (hint) hint.textContent = '(isi manual)';
             }
+            updProfit('ordPrice', 'ordCost', 'ordProfitInfo');
         }
 
         async function saveOrderForm(e, editId) {
@@ -1655,6 +1676,11 @@
             const phoneVal = document.getElementById('ordPhone').value;
             const orderTypeVal = document.getElementById('ordType').value;
             const priceVal = parseInt(document.getElementById('ordPrice').value) || 0;
+            const costVal = Math.max(0, parseInt(document.getElementById('ordCost').value) || 0);
+            if (costVal > 0 && costVal >= priceVal) {
+                showToast('Beban biaya harus lebih kecil dari estimasi total harga!', 'error');
+                return;
+            }
             const excelDataVal = (window.tempExcelParsed || []).filter(r => (r.component || '').trim() || (r.spec || '').trim() || Number(r.price) > 0);
 
             const dbPayload = {
@@ -1665,6 +1691,7 @@
                 phone: phoneVal,
                 order_type: orderTypeVal,
                 estimated_price: priceVal,
+                cost_price: costVal,
                 excel_data: excelDataVal
             };
 
@@ -1679,7 +1706,7 @@
 
                 if (res.error) {
                     console.error("Error Simpan Order Supabase:", res.error);
-                    showToast('Gagal menyimpan: ' + res.error.message, 'error');
+                    showToast(/cost_price/.test(res.error.message) ? 'Kolom cost_price belum ada. Jalankan migrasi_beban_biaya.sql di Supabase dulu.' : 'Gagal menyimpan: ' + res.error.message, 'error');
                     return;
                 }
                 await loadSupabaseData();
@@ -1687,10 +1714,10 @@
                 if (editId) {
                     const idx = appData.orders.findIndex(o => o.id === editId);
                     if (idx !== -1) {
-                        appData.orders[idx] = { ...appData.orders[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, excelData: excelDataVal };
+                        appData.orders[idx] = { ...appData.orders[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, costPrice: costVal, excelData: excelDataVal };
                     }
                 } else {
-                    appData.orders.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, progress: 0, excelData: excelDataVal });
+                    appData.orders.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, costPrice: costVal, progress: 0, excelData: excelDataVal });
                 }
                 renderApp();
             }
@@ -1783,12 +1810,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Estimasi Biaya Service (Rp)</label>
-                                <input type="number" id="svcPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
+                                <input type="number" id="svcPrice" value="${isEdit ? record.estimatedPrice : 0}" oninput="updProfit('svcPrice','svcCost','svcProfitInfo')" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
-                            <div class="flex items-end">
-                                <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">Simpan Service</button>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Beban Biaya Service (Rp) <span class="font-medium text-rose-500">(modal)</span></label>
+                                <input type="number" min="0" id="svcCost" value="${isEdit && record.costPrice ? record.costPrice : 0}" oninput="updProfit('svcPrice','svcCost','svcProfitInfo')" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                         </div>
+                        <div id="svcProfitInfo"></div>
+                        <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">Simpan Service</button>
                     </form>
                 </div>
             `);
@@ -1799,6 +1829,7 @@
             } else {
                 addServiceItemRow();
             }
+            updProfit('svcPrice', 'svcCost', 'svcProfitInfo');
         }
 
         function addServiceItemRow(nameVal = '', issueVal = '') {
@@ -1839,6 +1870,11 @@
             const kelengkapanVal = document.getElementById('svcKelengkapan').value;
             const notesVal = document.getElementById('svcNotes').value;
             const priceVal = parseInt(document.getElementById('svcPrice').value) || 0;
+            const costVal = Math.max(0, parseInt(document.getElementById('svcCost').value) || 0);
+            if (costVal > 0 && costVal >= priceVal) {
+                showToast('Beban biaya harus lebih kecil dari estimasi biaya service!', 'error');
+                return;
+            }
 
             const dbPayload = {
                 id: idVal,
@@ -1849,6 +1885,7 @@
                 kelengkapan: kelengkapanVal,
                 notes: notesVal,
                 estimated_price: priceVal,
+                cost_price: costVal,
                 items: items
             };
 
@@ -1863,7 +1900,7 @@
 
                 if (res.error) {
                     console.error("Error Simpan Service Supabase:", res.error);
-                    showToast('Gagal menyimpan: ' + res.error.message, 'error');
+                    showToast(/cost_price/.test(res.error.message) ? 'Kolom cost_price belum ada. Jalankan migrasi_beban_biaya.sql di Supabase dulu.' : 'Gagal menyimpan: ' + res.error.message, 'error');
                     return;
                 }
                 await loadSupabaseData();
@@ -1871,10 +1908,10 @@
                 if (editId) {
                     const idx = appData.services.findIndex(s => s.id === editId);
                     if (idx !== -1) {
-                        appData.services[idx] = { ...appData.services[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, items: items };
+                        appData.services[idx] = { ...appData.services[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, costPrice: costVal, items: items };
                     }
                 } else {
-                    appData.services.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, progress: 0, items: items });
+                    appData.services.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, costPrice: costVal, progress: 0, items: items });
                 }
                 renderApp();
             }
@@ -2419,7 +2456,7 @@ function posAddRef(kind,id){const isO=kind==='order',r=(isO?appData.orders:appDa
  const sub=['No. '+id,'a.n. '+(r.customerName||'-')];
  if(isO)(r.excelData||[]).forEach(e=>sub.push((e.spec||e.component||'')+((+e.qty>1)?' x'+e.qty:'')));
  else(r.items||[]).forEach(e=>sub.push((e.name||'')+(e.issue?' - '+e.issue:'')));
- POS.cart.push({type:kind,ref:id,name:isO?('Pembelian '+(r.orderType||'Komputer')):'Jasa Service',price,qty:1,sub});
+ POS.cart.push({type:kind,ref:id,name:isO?('Pembelian '+(r.orderType||'Komputer')):'Jasa Service',price,qty:1,sub,cost:Math.max(0,Number(r.costPrice)||0)});
  posRenderCart();posRenderGrid();}
 function posSendToKasir(kind,id){if(POS.paid.has(id)){alert(id+' sudah dibayar lewat Kasir.');return;}
  POS.view=kind;POS.q='';switchAdminTab('kasir');posAddRef(kind,id);}
@@ -2464,18 +2501,23 @@ async function posCheckout(){
  const kas=method==='cash'?s.cashKas:(s.cashlessKas||s.cashKas);
  const stockLines=POS.cart.filter(c=>c.type==='stock');
  const w=posWalk();for(const c of stockLines){const st=(w[c.id]||{qty:0}).qty;if(c.qty>st+1e-9){alert('Stok '+c.name+' tidak cukup (sisa '+(+st.toFixed(2))+').');return;}}
+ const refCost=POS.cart.reduce((t,c)=>t+(c.ref?(Number(c.cost)||0):0),0);
+ if(refCost>0&&total<=refCost){alert('Total bayar ('+posRp(total)+') tidak boleh kurang dari atau sama dengan beban biaya pesanan/service ('+posRp(refCost)+'). Kurangi diskon atau ubah harga.');return;}
  const dup=POS.cart.find(c=>c.ref&&POS.paid.has(c.ref));if(dup){alert(dup.ref+' sudah dibayar sebelumnya. Hapus dari keranjang.');return;}
  const btn=$p('posGo');btn.disabled=true;btn.innerText='Menyimpan...';
- const date=posToday();let txId=null;
- const undo=async()=>{if(txId){await finClient.from('inventory_moves').delete().eq('transaction_id',txId);await finClient.from('transactions').delete().eq('id',txId);}};
+ const date=posToday();let txId=null,costTx=null;
+ const undo=async()=>{if(costTx)await finClient.from('transactions').delete().eq('id',costTx);if(txId){await finClient.from('inventory_moves').delete().eq('transaction_id',txId);await finClient.from('transactions').delete().eq('id',txId);}};
  try{
-  const desc=('Kasir: '+POS.cart.map(c=>(c.ref?c.name+' #'+c.ref:c.name)+' x'+c.qty).join(', ')).slice(0,200);
-  const a=await finClient.from('transactions').insert([{account:s.account,type:'in',date,description:desc,qty:1,category:'Penjualan',cash_type:kas,amount:total}]).select();
+  const desc=((refCost>0?'Kasir (laba): ':'Kasir: ')+POS.cart.map(c=>(c.ref?c.name+' #'+c.ref:c.name)+' x'+c.qty).join(', ')).slice(0,200);
+  const a=await finClient.from('transactions').insert([{account:s.account,type:'in',date,description:desc,qty:1,category:'Penjualan',cash_type:kas,amount:total-refCost}]).select();
   if(a.error||!a.data||!a.data.length)throw new Error(a.error?a.error.message:'database tidak merespons');txId=a.data[0].id;
+  if(refCost>0){const refs=POS.cart.filter(c=>c.ref&&c.cost>0).map(c=>c.ref).join(', ');
+   const e=await finClient.from('transactions').insert([{account:s.account,type:'out',date,description:('Beban pokok: '+refs).slice(0,200),qty:1,category:'Beban Pokok Penjualan',cash_type:kas,amount:refCost}]).select();
+   if(e.error||!e.data||!e.data.length)throw new Error(e.error?e.error.message:'database tidak merespons (beban pokok)');costTx=e.data[0].id;}
   const f=sub>0?total/sub:1;
   if(stockLines.length){const b=await finClient.from('inventory_moves').insert(stockLines.map(c=>({account:s.account,item_id:c.id,date,type:'out',qty:c.qty,unit_cost:0,unit_price:c.price*f,note:'Kasir',transaction_id:txId}))).select();
    if(b.error)throw new Error(b.error.message);}
-  const items=POS.cart.map(c=>{const o={name:c.name,qty:c.qty,price:c.price,type:c.type};if(c.ref)o.ref=c.ref;if(c.sub&&c.sub.length)o.sub=c.sub;return o;});
+  const items=POS.cart.map(c=>{const o={name:c.name,qty:c.qty,price:c.price,type:c.type};if(c.ref){o.ref=c.ref;if(costTx)o.costTx=costTx;}if(c.sub&&c.sub.length)o.sub=c.sub;return o;});
   const c=await finClient.from('pos_sales').insert([{account:s.account,date,items,subtotal:sub,discount:disc,total,paid,change:paid-total,pay_method:method,cash_type:kas,cashier:s.cashier,transaction_id:txId}]).select();
   if(c.error||!c.data||!c.data.length)throw new Error(c.error?c.error.message:'database tidak merespons');
   POS.last={id:c.data[0].id,at:new Date(c.data[0].created_at||Date.now()),items,subtotal:sub,discount:disc,total,paid,change:paid-total,method};
@@ -2722,7 +2764,7 @@ function posReprintDo(id){const s=POS.hist.rows.find(x=>x.id===id);if(!s)return;
 function posDeleteAsk(ids){const rows=ids.map(i=>POS.hist.rows.find(x=>x.id===i)).filter(Boolean);if(!rows.length)return;
  const tot=rows.reduce((a,s)=>a+s.total,0);
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-rose-600"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Hapus ${rows.length} Transaksi?</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
-  <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1"><div>Yang akan terjadi:</div><div>&bull; Transaksi dihapus permanen dari riwayat kasir.</div><div>&bull; Pemasukan ${posRp(tot)} dihapus dari Bendahara.</div><div>&bull; Stok barang yang terjual dikembalikan.</div><div>&bull; Pesanan PC / service di dalamnya kembali berstatus belum dibayar.</div><div class="font-bold">Tindakan ini tidak bisa dibatalkan.</div></div>
+  <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1"><div>Yang akan terjadi:</div><div>&bull; Transaksi dihapus permanen dari riwayat kasir.</div><div>&bull; Transaksi senilai ${posRp(tot)} dihapus dari Bendahara (pemasukan, dan pengeluaran beban pokok bila ada).</div><div>&bull; Stok barang yang terjual dikembalikan.</div><div>&bull; Pesanan PC / service di dalamnya kembali berstatus belum dibayar.</div><div class="font-bold">Tindakan ini tidak bisa dibatalkan.</div></div>
   <div class="max-h-40 overflow-y-auto space-y-1.5">${rows.map(posSaleSummaryHtml).join('')}</div>
   <label class="flex items-start gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" onchange="$p('dlGo').disabled=!this.checked" class="w-4 h-4 mt-0.5"> Saya mengerti dan ingin menghapus transaksi ini.</label>
   <div class="grid grid-cols-2 gap-2"><button onclick="posClose()" class="${BTN}bg-slate-100 text-slate-700 !py-3">Batal</button><button id="dlGo" disabled onclick="posDeleteDo([${ids.join(',')}])" class="${BTN}bg-rose-600 text-white !py-3 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-trash"></i> Hapus Permanen</button></div>`);}
@@ -2733,6 +2775,8 @@ async function posDeleteDo(ids){const b=$p('dlGo');if(b){b.disabled=true;b.inner
    if(d.error||!d.data||!d.data.length){errs.push(no+': '+(d.error?d.error.message:'database menolak penghapusan'));continue;}
    if(s.tx){const m=await finClient.from('inventory_moves').delete().eq('transaction_id',s.tx),t=await finClient.from('transactions').delete().eq('id',s.tx);
     if(m.error||t.error)errs.push(no+': riwayat terhapus, tetapi data Bendahara gagal dibersihkan ('+(m.error||t.error).message+'). Hapus manual di Bendahara.');}
+   const cts=[...new Set((s.items||[]).map(i=>i&&i.costTx).filter(Boolean))];
+   if(cts.length){const ct=await finClient.from('transactions').delete().in('id',cts);if(ct.error)errs.push(no+': pengeluaran beban pokok gagal dihapus ('+ct.error.message+'). Hapus manual di Bendahara.');}
    ok++;POS.hist.sel.delete(id);}catch(e){errs.push(no+': '+e.message);}}
  posClose();await posLoad();await posHistLoad();
  alert(ok+' transaksi dihapus.'+(errs.length?'\n\nBermasalah:\n'+errs.join('\n'):''));}
