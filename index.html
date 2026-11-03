@@ -2336,7 +2336,7 @@
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
-            setTimeout(()=>{if(typeof posAutoUSB==='function')posAutoUSB().then(()=>posAutoSerial());},1200);
+            setTimeout(()=>{if(typeof posAutoUSB==='function')posAutoUSB().then(()=>posAutoSerial()).then(()=>posStationStart());},1200);
             renderApp();
             if (supabaseClient) {
                 await loadSupabaseData();
@@ -2354,6 +2354,8 @@ let finClient=null; try{finClient=window.supabase.createClient(FIN_URL,FIN_KEY);
 const POS={s:{account:'',cashKas:'',cashlessKas:'',store:'DARUSSALAM COMPUTER CENTER',addr:'Ds. Gontor, Kec. Mlarak, Kab. Ponorogo, Prov. Jawa Timur, 63472',phone:'085179952026',footer:'Your Best Choice to Face Your Global World',cashier:'DCC servis',cols:32,baud:9600,showLogo:true},
  accounts:[],opt:{},items:[],moves:[],cart:[],discount:0,q:'',view:'stock',paid:new Set(),loaded:false,err:'',last:null,printer:null,rt:false};
 try{Object.assign(POS.s,JSON.parse(localStorage.getItem('dcc_pos_settings')||'{}'));}catch(e){}
+// Relay cetak v2: otomatis aktif di semua perangkat (tanpa perlu centang manual)
+if(!POS.s.relayV2){POS.s.station=true;POS.s.remote=true;POS.s.relayV2=true;try{localStorage.setItem('dcc_pos_settings',JSON.stringify(POS.s));}catch(e){}}
 const pe=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const posRp=n=>'Rp'+Math.round(n||0).toLocaleString('id-ID');
 const posToday=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
@@ -2383,33 +2385,18 @@ async function posLoad(){
  POS.cart=POS.cart.filter(c=>c.type!=='stock'||POS.items.some(i=>i.id===c.id));
  try{const pr=await finClient.from('pos_sales').select('items').order('id',{ascending:false}).limit(2000);
   if(!pr.error&&pr.data){const ps=new Set();pr.data.forEach(r=>(r.items||[]).forEach(i=>{if(i&&i.ref)ps.add(i.ref);}));POS.paid=ps;POS.cart=POS.cart.filter(c=>!c.ref||!ps.has(c.ref));}}catch(e){}
- POS.loaded=true;if(!POS.rt)posRealtime();posRefreshAll();}
+ POS.loaded=true;if(!POS.rt)posRealtime();posRefreshAll();posQueueLoad();}
 function posRealtime(){POS.rt=true;let t;
- try{
-  finClient.channel('pos-sync')
-   .on('postgres_changes',{event:'*',schema:'public',table:'pos_sales'},(payload)=>{
-     clearTimeout(t);
-     // Otomatis memperbarui daftar transaksi jika pengguna sedang berada di tab kasir atau transaksi
-     t=setTimeout(()=>{
-       posLoad();
-       if(appData.activeTab==='kasir' && payload.eventType==='INSERT' && payload.new){
-         const newSale = posSaleFromRow(payload.new);
-         if(POS.s.cashier !== newSale.cashier){
-           posLast(true, newSale);
-         }
-       }
-     },600);
-   })
-   .on('postgres_changes',{event:'*',schema:'public'},()=>{clearTimeout(t);t=setTimeout(posLoad,600);})
-   .subscribe();
- }catch(e){}
- setInterval(()=>{if(!document.hidden&&(appData.activeTab==='kasir'||appData.activeTab==='stok'))posLoad();},20000);}
+ try{finClient.channel('pos-sync').on('postgres_changes',{event:'*',schema:'public'},()=>{clearTimeout(t);t=setTimeout(posLoad,600);}).subscribe();}catch(e){}
+ setInterval(()=>{if(!document.hidden&&(appData.activeTab==='kasir'||appData.activeTab==='stok'))posLoad();},20000);
+ try{let t2;finClient.channel('pj-queue').on('postgres_changes',{event:'*',schema:'public',table:'print_jobs'},()=>{clearTimeout(t2);t2=setTimeout(posQueueLoad,250);}).subscribe();}catch(e){}
+ setInterval(()=>{if(!document.hidden&&appData.activeTab==='kasir')posQueueLoad();},8000);}
 function posRefreshAll(){const t=appData.activeTab;
- if(t==='kasir'&&$p('posGrid')&&!POS.err){posRenderGrid();posRenderCart();}else if(t==='kasir'||t==='stok')renderApp();else if(t==='transaksi'&&!POS.hist.loading)posHistLoad();}
+ if(t==='kasir'&&$p('posGrid')&&!POS.err){posRenderGrid();posRenderCart();posQueueRender();}else if(t==='kasir'||t==='stok')renderApp();else if(t==='transaksi'&&!POS.hist.loading)posHistLoad();}
 
 // ---------- Kait ke aplikasi utama ----------
 {const _ra=renderApp;renderApp=function(){const f=document.activeElement&&document.activeElement.id;_ra();
-  if(appData.activeTab==='kasir'&&!POS.err){posRenderGrid();posRenderCart();if(f==='posSearch'){const e=$p('posSearch');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}}}};
+  if(appData.activeTab==='kasir'&&!POS.err){posRenderGrid();posRenderCart();posQueueRender();if(f==='posSearch'){const e=$p('posSearch');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}}}};
  const _sw=switchAdminTab;switchAdminTab=function(k){_sw(k);if((k==='kasir'||k==='stok')&&!POS.loaded)posLoad();if(k==='kasir')setTimeout(()=>{const e=$p('posSearch');e&&e.focus();},60);};
  document.addEventListener('keydown',e=>{if(appData.activeTab!=='kasir'||$p('posHost').innerHTML)return;
   const m={F3:()=>$p('posSearch')&&$p('posSearch').focus(),F2:posDiscount,F8:posNew,F10:posPay};if(m[e.key]){e.preventDefault();m[e.key]();}});
@@ -2419,9 +2406,7 @@ function posClose(){$p('posHost').innerHTML='';}
 function posErrBox(){return `<div class="p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-sm space-y-2"><b>Tidak bisa membaca data Stok dari database Bendahara.</b><div class="text-xs font-mono break-all">${pe(POS.err)}</div><div class="text-xs">Pastikan skrip <code>migrasi_stok_tutup_buku.sql</code> dan <code>migrasi_kasir.sql</code> sudah dijalankan di Supabase Bendahara.</div><button onclick="POS.err='';posLoad()" class="${BTN}bg-amber-600 text-white">Coba Lagi</button></div>`;}
 
 // ---------- Halaman Kasir ----------
-const POS_LOGO='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAAELAQAAAACn/7RpAAAMF0lEQVR42tWYf1RT993HP/dyozehSohBOOuP/PBSEmiLTzf16daZSwqThKnI4LhT64FnT9fuKR3daHvms25LtLip61qI4WmnsygHaMRT3Wm3Yulqsk5Xf7Rdi6v2iG0DAw36aCH+IITkvvcHN8BNwh/9s/knf7zO+/P+fL73+/3ez/0woPQ/lr5CwD0XCHzZUNASk3ZJkD06R6iX5lDEs66nV8Tz5jK3ECHdbzADKQp0HiQ6tCZVEdCS6sFSFZKzit/zzB8nPxzTfpasCG/mSaUuVYNLsvCc3sXfZBt2JXtI+3VaUc/bUxTS75fbM9m6hp8nK8JeTyWr5ZuKkhU3D34+VLU8z/3DZMUxq9dnFPnmAiQBj/8ddkdhO9eWDA5IFl8J8e3FyQDRrSpLdzuPJCAdilsqtxJvdyWBQbF2WGOsKdHakoC+lX27spX0pUnmsRayb/0l6t6sNShB2OlUMb+spmrVWiUYMWVX+rLe6WYqs5TgpNOZryrZxFSyq5Rrdfbcj6Wi0qKlG+98T7nhWuM7meG84d3SvnmHFaCCIitNj75UvViajCk8TKa7JWeVfqOx3aE0r/YCIfeWrB3EKIFmFYAaa0mwNV8J1hUDCImWXspWAqENgNTKbrSKyr3bECQi5kDXa7knSFHgeICIqJffx4jKzdDnAoB4JR8UlEuiE4konrEsvOtTpWLEBUByjWrvb1aaZxIRMYE` +
-'FoxVsqt2JXtI+3VaUc/bUxTS75fbM9m6hp8nK8JeTyWr5ZuKkhU3D34+VLU8z/3DZMUxq9dnFPnmAiQBj/8ddkdhO9eWDA5IFl8J8e3FyQDRrSpLdzuPJCAdilsqtxJvdyWBQbF2WGOsKdHakoC+lX27spX0pUnmsRayb/0l6t6sNShB2OlUMb+spmrVWiUYMWVX+rLe6WYqs5TgpNOZryrZxFSyq5Rrdfbcj6Wi0qKlG+98T7nhWuM7meG84d3SvnmHFaCCIitNj75UvViajCk8TKa7JWeVfqOx3aE0r/YCIfeWrB3EKIFmFYAaa0mwNV8J1hUDCImWXspWAqENgNTKbrSKyr3bECQi5kDXa7knSFHgeICIqJffx4jKzdDnAoB4JR8UlEuiE4konrEsvOtTpWLEBUByjWrvb1aaZxIRMYE';
-
+const POS_LOGO='data:image/png;base64,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';
 function renderTabKasir(){
  if(POS.err)return posErrBox();const s=POS.s;
  return `<div class="space-y-4"><div class="flex flex-wrap items-center justify-between gap-2"><div><h2 class="text-xl font-extrabold text-slate-800">Kasir</h2>
@@ -2440,7 +2425,7 @@ function renderTabKasir(){
    <button onclick="posNew()" class="${BTN}!px-1 bg-slate-100 hover:bg-slate-200 text-slate-700"><i class="fa-solid fa-plus"></i> Baru<div class="text-[9px] opacity-60">F8</div></button>
    <button onclick="posLast()" class="${BTN}!px-1 bg-slate-100 hover:bg-slate-200 text-slate-700"><i class="fa-solid fa-receipt"></i> Struk<div class="text-[9px] opacity-60">terakhir</div></button></div>
    <button onclick="posVoid()" class="w-full ${BTN}bg-rose-600 hover:bg-rose-700 text-white"><i class="fa-solid fa-trash"></i> Batalkan Transaksi</button>
-   <button onclick="posPay()" class="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-lg shadow-lg transition active:scale-95">Bayar <span class="text-xs opacity-80">(F10)</span></button></div></div></div>`;}
+   <button onclick="posPay()" class="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-lg shadow-lg transition active:scale-95">Bayar <span class="text-xs opacity-80">(F10)</span></button></div></div><div id="posQueue"></div></div>`;}
 function posSub(){return POS.cart.reduce((t,c)=>t+c.qty*c.price,0);}
 function posTabsHtml(){
  const unpaid=a=>(a||[]).filter(r=>!POS.paid.has(r.id)).length;
@@ -2595,8 +2580,9 @@ function posLast(auto,sale){const s=sale||POS.last;if(!s){alert('Belum ada trans
   <div class="bg-slate-100 rounded-2xl p-3 flex justify-center overflow-x-auto max-h-[60vh] overflow-y-auto">${posReceiptHtml(s)}</div>
   <div class="grid grid-cols-2 gap-2"><button onclick="posPrintBrowser()" class="${BTN}bg-[#003b87] text-white"><i class="fa-solid fa-print"></i> Cetak (Browser)</button>
   <button onclick="posPrintDirect()" class="${BTN}bg-emerald-600 text-white"><i class="fa-solid fa-plug"></i> Cetak Langsung</button></div>
+  <div class="text-[11px] text-center font-semibold ${POS.printer?'text-emerald-600':'text-amber-600'}">${POS.printer?'Printer terhubung di perangkat ini.':'Perangkat ini tanpa printer: Cetak Langsung dikirim ke PC printer.'}</div>
   ${s.reprint?`<button onclick="posClose()" class="w-full ${BTN}bg-slate-100 text-slate-700">Tutup</button>`:`<button onclick="posClose();posNew()" class="w-full ${BTN}bg-slate-100 text-slate-700">Selesai / Transaksi Baru</button>`}`);
- if(auto&&POS.printer)posPrintDirect();}
+ if(auto&&(POS.printer||POS.s.remote!==false))posPrintDirect(s);}
 function posPrintDoc(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
  const logo=POS.s.showLogo!==false?`<img src="${POS_LOGO}" alt="">`:'';
  return `<!doctype html><html><head><meta charset="utf-8"><title>Struk ${pe(posReceiptNo(sale))}</title><style>
@@ -2626,17 +2612,33 @@ function posLogoBytes(){return new Promise(res=>{try{const im=new Image();
 async function posBytes(L){const o=[0x1B,0x40],enc=t=>[...t].map(ch=>ch.charCodeAt(0)<128?ch.charCodeAt(0):63);
  if(POS.s.showLogo!==false){const lg=await posLogoBytes();if(lg.length){o.push(0x1B,0x61,1);for(let i=0;i<lg.length;i++)o.push(lg[i]);o.push(0x1B,0x61,0,0x0A);}}
  L.forEach(x=>{if(x.b)o.push(0x1B,0x45,1);o.push(...enc(x.t),0x0A);if(x.b)o.push(0x1B,0x45,0);});o.push(0x1B,0x64,3);return new Uint8Array(o);}
-async function posPrintDirect(){if(!POS.printer){alert('Printer belum terhubung. Hubungkan lewat tombol Printer.');return posPrinterModal();}
- try{await POS.printer.write(await posBytes(posReceipt(POS.cur||POS.last)));}catch(e){alert('Gagal mencetak: '+e.message);}}
+function posSalePayload(sale){return JSON.parse(JSON.stringify({...sale,at:sale.at instanceof Date?sale.at.toISOString():sale.at}));}
+function posDevice(){return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)?'HP':'PC';}
+function posWho(){return (POS.s.cashier||'')+' ('+posDevice()+')';}
+// Cetak Langsung: printer lokal bila ada, jika tidak otomatis dikirim ke PC printer lewat antrian sinkron
+async function posPrintDirect(sale){sale=sale||POS.cur||POS.last;
+ if(!sale){alert('Belum ada struk.');return;}
+ if(!POS.printer)return posSendRemote(sale);
+ let err='';
+ try{await POS.printer.write(await posBytes(posReceipt(sale)));}catch(e){err=e.message||String(e);alert('Gagal mencetak: '+err);}
+ // catat ke antrian agar semua perangkat melihat riwayat cetak yang sama
+ try{if(finClient)await finClient.from('print_jobs').insert([{account:POS.s.account,payload:posSalePayload(sale),requested_by:posWho(),status:err?'error':'done',station:posWho()+' (lokal)',error:err||null,printed_at:err?null:new Date().toISOString()}]);}catch(e){}
+ posQueueLoad();}
 
 // ---------- Printer ----------
 const POS_BT_SERVICES=['000018f0-0000-1000-8000-00805f9b34fb','0000ff00-0000-1000-8000-00805f9b34fb','0000ffe0-0000-1000-8000-00805f9b34fb','0000fee7-0000-1000-8000-00805f9b34fb','e7810a71-73ae-499d-8c15-faa9aef0c3f2','49535343-fe7d-4ae5-8fa9-9fafd205e455'];
 const posSleep=ms=>new Promise(r=>setTimeout(r,ms));
 try{navigator.usb&&navigator.usb.addEventListener('disconnect',e=>{if(POS.printer&&POS.printer.dev===e.device){POS.printer=null;posPrinterLabel();}});}catch(e){}
-function posPrinterLabel(){const b=$p('posPrinterBtn');if(b)b.innerHTML='<i class="fa-solid fa-print"></i> '+(POS.printer?pe(POS.printer.name):'Printer');}
+function posPrinterLabel(){try{posStationSync();}catch(e){}const b=$p('posPrinterBtn');if(b)b.innerHTML='<i class="fa-solid fa-print"></i> '+(POS.printer?pe(POS.printer.name):'Printer');}
 function posPrinterModal(){const ok=!!POS.printer;
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">Printer Thermal 58mm (POS-58 / BT-58D)</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
  <div class="p-3 rounded-xl ${ok?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600'} text-xs font-bold">${ok?'Terhubung: '+pe(POS.printer.name)+' ('+POS.printer.type+')':'Belum terhubung'}</div>
+ <div class="rounded-xl border border-slate-200 p-3 space-y-2">
+  <div class="text-[11px] font-bold text-slate-700">Cetak Antar-Perangkat (otomatis)</div>
+  <label class="flex items-start gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" ${POS.s.station!==false?'checked':''} onchange="posToggle('station')" class="w-4 h-4 mt-0.5"><span><b>Terima struk dari perangkat lain</b>: selama printer terhubung dan tab terbuka, perangkat ini otomatis mencetak struk yang ditekan <i>Cetak Langsung</i> dari HP / perangkat lain.</span></label>
+  <label class="flex items-start gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" ${POS.s.remote!==false?'checked':''} onchange="posToggle('remote')" class="w-4 h-4 mt-0.5"><span><b>Cetak otomatis setelah bayar</b>: bila perangkat ini tanpa printer, struk langsung dikirim ke PC printer.</span></label>
+  <div class="text-[11px] font-bold ${POS.printer&&POS.s.station!==false?'text-emerald-600':'text-slate-500'}">${POS.printer?(POS.s.station!==false?'Stasiun cetak aktif, menunggu struk dari perangkat lain...':'Perangkat ini tidak menerima struk dari perangkat lain.'):'Hubungkan printer di bawah agar perangkat ini menjadi stasiun cetak.'}</div>
+ </div>
  <button onclick="posConnectUSB()" class="w-full ${BTN}bg-[#003b87] text-white !py-3"><i class="fa-brands fa-usb"></i> Hubungkan via Kabel USB</button>
  <div class="grid grid-cols-2 gap-2"><button onclick="posTestPrint()" class="${BTN}bg-emerald-600 text-white"><i class="fa-solid fa-vial"></i> Cetak Uji</button>
  <button onclick="posDisconnect()" class="${BTN}bg-slate-100 text-slate-700" ${ok?'':'disabled'}>Putuskan</button></div>
@@ -2704,6 +2706,97 @@ async function posDisconnect(silent){const p=POS.printer;POS.printer=null;try{if
 async function posTestPrint(){if(!POS.printer){alert('Printer belum terhubung. Hubungkan dulu lewat tombol di atas.');return;}
  const sale={id:0,at:new Date(),items:[{name:'Cetak Uji',qty:1,price:1000}],subtotal:1000,discount:0,total:1000,paid:1000,change:0,method:'cash'};
  try{await POS.printer.write(await posBytes(posReceipt(sale)));}catch(e){POS.printer=null;posPrinterLabel();alert('Gagal mencetak: '+e.message+'\n\nSambungan terputus. Hubungkan ulang printer.');}}
+
+// ---------- Cetak Antar-Perangkat (relay via tabel print_jobs) ----------
+POS.st={ch:null,busy:false,timer:null,wl:null};
+async function posSendRemote(sale){
+ sale=sale||POS.cur||POS.last;if(!sale){alert('Belum ada struk.');return;}
+ if(!finClient){alert('Koneksi database tidak tersedia.');return;}
+ const r=await finClient.from('print_jobs').insert([{account:POS.s.account,payload:posSalePayload(sale),requested_by:posWho()}]).select();
+ if(r.error||!r.data||!r.data.length){alert('Gagal mengirim ke printer kasir: '+(r.error?r.error.message:'database tidak merespons')+'\n\nPastikan migrasi_print_jobs.sql sudah dijalankan di Supabase Bendahara.');return;}
+ const id=r.data[0].id;showToast('Struk dikirim ke PC printer...','info');posQueueLoad();
+ setTimeout(async()=>{try{const c=await finClient.from('print_jobs').select('status,error').eq('id',id).single();const st=c.data&&c.data.status;
+  if(st==='done')showToast('Struk berhasil dicetak.','success');
+  else if(st==='error')alert('Printer kasir gagal mencetak: '+c.data.error);
+  else showToast('PC printer belum merespons. Struk tetap tersimpan di antrian Kasir dan akan dicetak begitu PC printer siap.','error');
+  posQueueLoad();}catch(e){}},8000);}
+async function posStationRun(){
+ if(POS.s.station===false||!finClient||POS.st.busy||!POS.printer)return;POS.st.busy=true;
+ try{
+  const since=new Date(Date.now()-10*6e4).toISOString();
+  const q=await finClient.from('print_jobs').select('*').eq('status','pending').eq('account',POS.s.account).gte('created_at',since).order('id');
+  for(const j of (q.data||[])){
+   if(!POS.printer)break;
+   const c=await finClient.from('print_jobs').update({status:'printing',station:(POS.s.cashier||'')+' ('+posDevice()+' stasiun)'}).eq('id',j.id).eq('status','pending').select();
+   if(!c.data||!c.data.length)continue; // sudah diambil stasiun lain
+   try{const sale={...j.payload,at:new Date(j.payload.at)};
+    await POS.printer.write(await posBytes(posReceipt(sale)));
+    await finClient.from('print_jobs').update({status:'done',printed_at:new Date().toISOString()}).eq('id',j.id);
+    showToast('Struk dari '+(j.requested_by||'perangkat lain')+' dicetak.','success');
+   }catch(e){await finClient.from('print_jobs').update({status:'error',error:String(e.message).slice(0,200)}).eq('id',j.id);}
+  }
+ }catch(e){console.error(e);}
+ POS.st.busy=false;posQueueLoad();}
+function posStationStop(){try{if(POS.st.ch){finClient.removeChannel(POS.st.ch);POS.st.ch=null;}}catch(e){}clearInterval(POS.st.timer);POS.st.timer=null;try{if(POS.st.wl){POS.st.wl.release();POS.st.wl=null;}}catch(e){}}
+function posStationStart(){posStationStop();if(POS.s.station===false||!POS.printer||!finClient)return;
+ POS.st.ch=finClient.channel('print_jobs_rt').on('postgres_changes',{event:'INSERT',schema:'public',table:'print_jobs'},()=>posStationRun()).subscribe();
+ POS.st.timer=setInterval(posStationRun,5000);
+ posWakeLock();
+ posStationRun();}
+function posWakeLock(){try{if(navigator.wakeLock&&!POS.st.wl)navigator.wakeLock.request('screen').then(w=>{POS.st.wl=w;w.addEventListener('release',()=>{POS.st.wl=null;});}).catch(()=>{});}catch(e){}}
+// Stasiun otomatis aktif selama ada printer terhubung (dan tidak dimatikan manual)
+function posStationSync(){const on=!!POS.printer&&POS.s.station!==false&&!!finClient;
+ if(on&&!POS.st.timer)posStationStart();else if(!on&&POS.st.timer)posStationStop();}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(POS.st.timer){posWakeLock();posStationRun();}if(appData.activeTab==='kasir')posQueueLoad();}});
+function posToggle(k){POS.s[k]=!(POS.s[k]!==false);posSave();posStationSync();posPrinterModal();}
+
+// ---------- Antrian Struk Siap Cetak (tersimpan di database, sinkron semua perangkat) ----------
+POS.pj={rows:[],err:'',loaded:false,busy:false};
+async function posQueueLoad(){if(!finClient||POS.pj.busy)return;POS.pj.busy=true;
+ try{const since=new Date(Date.now()-3*864e5).toISOString();
+  let q=finClient.from('print_jobs').select('*').gte('created_at',since).order('id',{ascending:false}).limit(30);
+  if(POS.s.account)q=q.eq('account',POS.s.account);
+  const r=await q;if(r.error){POS.pj.err=r.error.message;POS.pj.rows=[];}else{POS.pj.err='';POS.pj.rows=r.data||[];}}
+ catch(e){POS.pj.err=e.message;}
+ POS.pj.busy=false;POS.pj.loaded=true;posQueueRender();}
+function posJobSale(j){const p=j.payload||{};return {...p,at:new Date(p.at||j.created_at)};}
+function posJobStatus(j){const age=Date.now()-new Date(j.created_at).getTime();
+ if(j.status==='pending')return age>10*6e4?['Kedaluwarsa','bg-slate-200 text-slate-600']:['Menunggu printer','bg-amber-100 text-amber-700'];
+ if(j.status==='printing')return ['Sedang dicetak','bg-blue-100 text-blue-700'];
+ if(j.status==='done')return ['Tercetak','bg-emerald-100 text-emerald-700'];
+ if(j.status==='error')return ['Gagal','bg-rose-100 text-rose-700'];
+ return [j.status||'-','bg-slate-100 text-slate-600'];}
+function posQueueRender(){const h=$p('posQueue');if(!h)return;const P=POS.pj,p2=x=>String(x).padStart(2,'0');
+ const wait=P.rows.filter(j=>j.status==='pending'&&Date.now()-new Date(j.created_at).getTime()<=10*6e4).length;
+ const done=P.rows.filter(j=>j.status==='done').length;
+ const body=P.err?`<div class="p-4 text-xs text-amber-800 bg-amber-50 rounded-xl"><b>Antrian tidak dapat dibaca:</b> <span class="font-mono">${pe(P.err)}</span><div class="mt-1">Jalankan <code>migrasi_antrian_cetak.sql</code> di Supabase Bendahara.</div></div>`
+ :!P.rows.length?`<div class="p-6 text-center text-xs text-slate-400">${P.loaded?'Belum ada struk di antrian. Setiap struk yang dicetak dari perangkat manapun akan tersimpan di sini.':'Memuat...'}</div>`
+ :`<div class="divide-y divide-slate-100">`+P.rows.map(j=>{const sl=posJobSale(j),st=posJobStatus(j),d=new Date(j.created_at),no=sl.id?posReceiptNo(sl):'Cetak Uji',can=j.status!=='printing';
+  return `<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-xs">
+   <div class="min-w-[120px]"><div class="font-mono font-bold text-[#003b87]">${pe(no)}${sl.reprint?' <span class="text-[9px] text-amber-600">SALINAN</span>':''}</div><div class="text-[10px] text-slate-400">${p2(d.getDate())}/${p2(d.getMonth()+1)} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}</div></div>
+   <div class="flex-1 min-w-[140px] text-slate-600"><div class="truncate">${pe((sl.items||[]).slice(0,2).map(i=>i.name).join(', '))}${(sl.items||[]).length>2?' +'+((sl.items||[]).length-2):''}</div><div class="text-[10px] text-slate-400">Dari: ${pe(j.requested_by||'-')}${j.station?' &bull; Dicetak: '+pe(j.station):''}</div>${j.status==='error'&&j.error?`<div class="text-[10px] text-rose-500">${pe(j.error)}</div>`:''}</div>
+   <div class="font-mono font-bold">${posRp(sl.total)}</div>
+   <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${st[1]}">${st[0]}</span>
+   <div class="flex gap-1"><button onclick="posQueueView(${j.id})" class="${BTN}bg-slate-100 text-slate-700 hover:bg-slate-200" title="Lihat struk"><i class="fa-solid fa-eye"></i></button>
+   <button ${can?'':'disabled'} onclick="posQueuePrint(${j.id})" class="${BTN}bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40" title="Cetak langsung"><i class="fa-solid fa-plug"></i> Cetak</button>
+   <button onclick="posQueueDel([${j.id}])" class="${BTN}bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white" title="Hapus dari antrian"><i class="fa-solid fa-trash"></i></button></div></div>`;}).join('')+`</div>`;
+ h.innerHTML=`<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+  <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
+   <div><div class="text-sm font-extrabold text-slate-800"><i class="fa-solid fa-print text-[#003b87] mr-1"></i> Struk Siap Cetak <span class="text-[10px] font-semibold text-slate-400">(tersinkron di semua perangkat)</span></div>
+   <div class="text-[11px] font-semibold ${POS.printer?'text-emerald-600':'text-slate-500'}">${POS.printer?(POS.s.station!==false?'Perangkat ini = Stasiun Cetak: otomatis mencetak struk dari perangkat lain.':'Printer terhubung, tetapi penerimaan dari perangkat lain dimatikan.'):'Perangkat ini tanpa printer: Cetak Langsung dikirim ke PC printer.'}${wait?` &bull; <span class="text-amber-600">${wait} menunggu</span>`:''}</div></div>
+   <div class="flex gap-1.5"><button onclick="posQueueLoad()" class="${BTN}bg-white border border-slate-200 text-slate-600"><i class="fa-solid fa-rotate"></i> Segarkan</button>
+   ${done?`<button onclick="posQueueClearDone()" class="${BTN}bg-white border border-slate-200 text-slate-600"><i class="fa-solid fa-broom"></i> Hapus yang tercetak</button>`:''}</div></div>
+  <div class="max-h-[42vh] overflow-y-auto">${body}</div></div>`;}
+function posQueueView(id){const j=POS.pj.rows.find(x=>x.id===id);if(!j)return;const sl=posJobSale(j);if(!sl.items){alert('Data struk kosong.');return;}posLast(false,sl);}
+// Cetak dari antrian: struk yang sudah pernah tercetak diberi tanda SALINAN
+async function posQueuePrint(id){const j=POS.pj.rows.find(x=>x.id===id);if(!j)return;const sl=posJobSale(j);
+ if(!sl.items||!sl.items.length){alert('Data struk kosong.');return;}
+ POS.cur=sl;return posPrintDirect(j.status==='done'?{...sl,reprint:true}:sl);}
+async function posQueueDel(ids){if(!ids.length)return;
+ const r=await finClient.from('print_jobs').delete().in('id',ids).select();
+ if(r.error||!r.data||!r.data.length)alert('Gagal menghapus dari antrian.'+(r.error?'\n'+r.error.message:'\nKemungkinan izin hapus belum aktif. Jalankan migrasi_antrian_cetak.sql.'));
+ posQueueLoad();}
+function posQueueClearDone(){const ids=POS.pj.rows.filter(j=>j.status==='done').map(j=>j.id);if(ids.length&&confirm('Hapus '+ids.length+' struk yang sudah tercetak dari antrian?'))posQueueDel(ids);}
 
 // ---------- Pengaturan ----------
 function posSettings(){const s=POS.s,o=POS.opt[s.account]||{in:{cashTypes:[]},out:{cashTypes:[]}},kas=[...new Set([...o.in.cashTypes,...o.out.cashTypes])];
