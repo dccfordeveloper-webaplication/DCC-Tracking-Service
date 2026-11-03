@@ -2229,7 +2229,7 @@
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
-            setTimeout(()=>{if(typeof posAutoSerial==='function')posAutoSerial();},1200);
+            setTimeout(()=>{if(typeof posAutoUSB==='function')posAutoUSB().then(()=>posAutoSerial());},1200);
             renderApp();
             if (supabaseClient) {
                 await loadSupabaseData();
@@ -2501,21 +2501,22 @@ async function posPrintDirect(){if(!POS.printer){alert('Printer belum terhubung.
 // ---------- Printer ----------
 const POS_BT_SERVICES=['000018f0-0000-1000-8000-00805f9b34fb','0000ff00-0000-1000-8000-00805f9b34fb','0000ffe0-0000-1000-8000-00805f9b34fb','0000fee7-0000-1000-8000-00805f9b34fb','e7810a71-73ae-499d-8c15-faa9aef0c3f2','49535343-fe7d-4ae5-8fa9-9fafd205e455'];
 const posSleep=ms=>new Promise(r=>setTimeout(r,ms));
+try{navigator.usb&&navigator.usb.addEventListener('disconnect',e=>{if(POS.printer&&POS.printer.dev===e.device){POS.printer=null;posPrinterLabel();}});}catch(e){}
 function posPrinterLabel(){const b=$p('posPrinterBtn');if(b)b.innerHTML='<i class="fa-solid fa-print"></i> '+(POS.printer?pe(POS.printer.name):'Printer');}
 function posPrinterModal(){const ok=!!POS.printer;
- posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">Printer Thermal 58mm (BT-58D / POS-58)</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
+ posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">Printer Thermal 58mm (POS-58 / BT-58D)</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
  <div class="p-3 rounded-xl ${ok?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600'} text-xs font-bold">${ok?'Terhubung: '+pe(POS.printer.name)+' ('+POS.printer.type+')':'Belum terhubung'}</div>
- <button onclick="posConnectSerial()" class="w-full ${BTN}bg-[#003b87] text-white"><i class="fa-brands fa-bluetooth-b"></i> PC Windows: Bluetooth (COM) / USB-Serial</button>
- <button onclick="posConnectBT()" class="w-full ${BTN}bg-[#003b87] text-white"><i class="fa-brands fa-bluetooth-b"></i> HP Android / PC: Bluetooth Langsung (BLE)</button>
+ <button onclick="posConnectUSB()" class="w-full ${BTN}bg-[#003b87] text-white !py-3"><i class="fa-brands fa-usb"></i> Hubungkan via Kabel USB</button>
  <div class="grid grid-cols-2 gap-2"><button onclick="posTestPrint()" class="${BTN}bg-emerald-600 text-white"><i class="fa-solid fa-vial"></i> Cetak Uji</button>
  <button onclick="posDisconnect()" class="${BTN}bg-slate-100 text-slate-700" ${ok?'':'disabled'}>Putuskan</button></div>
  <div class="text-[11px] text-slate-600 space-y-1.5 bg-slate-50 rounded-xl p-3 leading-snug">
-  <div class="font-bold text-slate-700">Cara pakai di PC Windows (Chrome/Edge)</div>
-  <div>1. Nyalakan BT-58D, lalu <b>Pengaturan Windows &rsaquo; Bluetooth &rsaquo; Tambah perangkat</b> dan pasangkan (PIN biasanya <b>0000</b> atau <b>1234</b>).</div>
-  <div>2. Klik tombol <b>PC Windows</b> di atas, pilih port <b>Standard Serial over Bluetooth link (COMx)</b>, lalu <b>Hubungkan</b>. Jika ada dua COM, coba yang satunya.</div>
-  <div>3. Tekan <b>Cetak Uji</b>. Setelah berhasil, tombol <b>Cetak Langsung</b> di struk bekerja tanpa dialog cetak dan akan tersambung otomatis lagi saat halaman dibuka.</div>
-  <div class="font-bold text-slate-700 pt-1">Di HP Android</div><div>Pakai tombol <b>Bluetooth Langsung</b>, pilih BT-58D dari daftar.</div>
-  <div class="font-bold text-slate-700 pt-1">Jika printer hanya terpasang sebagai &quot;POS-58&quot; (kabel USB)</div><div>Browser tidak bisa mengirim langsung ke driver USB. Pakai <b>Cetak (Browser)</b>: pilih tujuan POS-58, <b>Margin: Tidak ada</b>, <b>Skala: 100</b>, matikan <b>Header dan footer</b>.</div>
+  <div class="font-bold text-slate-700">Langkah USB</div>
+  <div>1. Colok kabel USB, nyalakan printer, klik <b>Hubungkan via Kabel USB</b>, pilih printer (biasanya bernama <b>POS-58</b> atau <b>USB Printing Support</b>), lalu <b>Hubungkan</b>.</div>
+  <div>2. Tekan <b>Cetak Uji</b>. Setelah berhasil, tombol <b>Cetak Langsung</b> bekerja tanpa dialog cetak dan tersambung otomatis saat halaman dibuka.</div>
+  <div class="font-bold text-slate-700 pt-1">Jika muncul pesan &quot;tidak bisa membuka / akses ditolak&quot; (Windows)</div>
+  <div>Windows memegang printer lewat driver POS-58, sehingga browser tidak boleh memakainya. Solusi sekali saja: unduh <b>Zadig</b> (zadig.akeo.ie), buka, menu <b>Options &rsaquo; List All Devices</b>, pilih printer Anda, pilih driver <b>WinUSB</b>, klik <b>Replace Driver</b>, lalu cabut-colok kabel dan ulangi langkah 1. Setelah itu printer dipakai lewat aplikasi ini; cetak biasa dari program lain lewat driver POS-58 tidak lagi dipakai kecuali driver dikembalikan di Device Manager.</div>
+  <div class="font-bold text-slate-700 pt-1">Alternatif</div>
+  <div>Jika printer muncul sebagai port COM: <button onclick="posConnectSerial()" class="underline text-[#0058c4] font-bold">Hubungkan via Serial/COM</button>. Di HP Android: <button onclick="posConnectBT()" class="underline text-[#0058c4] font-bold">Bluetooth Langsung</button>.</div>
  </div>`);}
 async function posSerialUse(port){
  await port.open({baudRate:+POS.s.baud||9600,bufferSize:4096});
@@ -2529,6 +2530,29 @@ async function posConnectSerial(){if(!navigator.serial){alert('Browser ini tidak
  try{const port=await navigator.serial.requestPort();if(POS.printer)await posDisconnect(true);await posSerialUse(port);}
  catch(e){if(e.name==='NotFoundError')return;alert('Gagal menghubungkan: '+e.message+'\n\nPastikan printer menyala, sudah di-pair di Windows, dan tidak dipakai aplikasi/tab lain.');return;}
  posPrinterModal();}
+async function posUsbUse(dev){
+ await dev.open();
+ if(dev.configuration===null)await dev.selectConfiguration(1);
+ let pick=null;
+ for(const itf of dev.configuration.interfaces){for(const alt of itf.alternates){
+  const out=alt.endpoints.find(e=>e.direction==='out'&&e.type==='bulk');
+  if(out&&(!pick||alt.interfaceClass===7))pick={itf:itf.interfaceNumber,alt:alt.alternateSetting,ep:out.endpointNumber};}}
+ if(!pick){try{await dev.close();}catch(e){}throw new Error('Port tulis (bulk OUT) tidak ditemukan pada perangkat ini. Pastikan yang dipilih adalah printer.');}
+ await dev.claimInterface(pick.itf);
+ if(pick.alt)try{await dev.selectAlternateInterface(pick.itf,pick.alt);}catch(e){}
+ POS.printer={type:'USB',name:dev.productName||'Printer USB',dev,
+  write:async b=>{for(let i=0;i<b.length;i+=512){const r=await dev.transferOut(pick.ep,b.slice(i,i+512));if(r.status!=='ok')throw new Error('Printer tidak merespons (status '+r.status+').');await posSleep(8);}},
+  close:async()=>{try{await dev.releaseInterface(pick.itf);}catch(e){}try{await dev.close();}catch(e){}}};
+ posPrinterLabel();}
+async function posConnectUSB(){if(!navigator.usb){alert('Browser ini tidak mendukung WebUSB. Gunakan Chrome atau Edge di PC (alamat harus https).');return;}
+ let dev;try{dev=await navigator.usb.requestDevice({filters:[]});}catch(e){if(e.name!=='NotFoundError')alert('Gagal memilih perangkat: '+e.message);return;}
+ try{if(POS.printer)await posDisconnect(true);await posUsbUse(dev);}
+ catch(e){try{await dev.close();}catch(x){}
+  const busy=/claim|access|denied|busy|SecurityError|NetworkError|open/i.test(e.name+' '+e.message);
+  alert('Gagal terhubung ke printer USB: '+e.message+(busy?'\n\nPenyebab umum di Windows: driver POS-58 masih memegang printer. Ganti driver ke WinUSB memakai Zadig (langkahnya ada di jendela Printer), lalu cabut-colok kabel dan coba lagi.':''));
+  return posPrinterModal();}
+ posPrinterModal();}
+async function posAutoUSB(){try{if(!navigator.usb||POS.printer)return;const ds=await navigator.usb.getDevices();for(const d of ds){try{await posUsbUse(d);return;}catch(e){try{await d.close();}catch(x){}}}}catch(e){}}
 async function posAutoSerial(){try{if(!navigator.serial||POS.printer)return;const ps=await navigator.serial.getPorts();if(ps.length)await posSerialUse(ps[0]);}catch(e){}}
 async function posConnectBT(){if(!navigator.bluetooth){alert('Browser ini tidak mendukung Web Bluetooth. Gunakan Chrome/Edge (Android atau PC).');return;}
  try{const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:POS_BT_SERVICES});
