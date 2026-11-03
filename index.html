@@ -576,6 +576,7 @@
                                     ${renderNavBtn('service', 'Service', 'fa-wrench')}
                                     ${renderNavBtn('kasir', 'Kasir', 'fa-cash-register')}
                                     ${renderNavBtn('stok', 'Stok', 'fa-boxes-stacked')}
+                                    ${renderNavBtn('transaksi', 'Transaksi', 'fa-receipt')}
                                     ${renderNavBtn('invoice', 'Invoice', 'fa-file-invoice-dollar')}
                                     ${renderNavBtn('riwayat', 'Riwayat', 'fa-clock-rotate-left')}
                                     ${renderNavBtn('rekapan', 'Rekapan', 'fa-chart-line')}
@@ -624,6 +625,7 @@
                 case 'service': return renderTabService();
                 case 'kasir': return renderTabKasir();
                 case 'stok': return renderTabStok();
+                case 'transaksi': return renderTabTransaksi();
                 case 'invoice': return renderTabInvoice();
                 case 'riwayat': return renderTabRiwayat();
                 case 'rekapan': return renderTabRekapan();
@@ -1518,18 +1520,22 @@
                         <div class="space-y-2 border-t border-b border-slate-100 py-4">
                             <label class="block text-xs font-bold text-blue-950"><i class="fa-solid fa-file-excel text-emerald-600 mr-1"></i> Paste Tabel Rancangan dari Excel</label>
                             <textarea id="excelPasteArea" onpaste="handleExcelPaste(event)" placeholder="Tempel (Ctrl+V) tabel spesifikasi Excel di sini..." class="w-full h-20 p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl outline-none"></textarea>
-                            <div class="max-h-36 overflow-y-auto border border-slate-200 rounded-xl">
-                                <table class="w-full text-left text-[11px]">
-                                    <thead class="bg-slate-100 text-slate-600 font-bold uppercase sticky top-0">
-                                        <tr><th class="p-2">Komponen</th><th class="p-2">Spesifikasi</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Harga</th></tr>
+                            <div class="max-h-60 overflow-auto border border-slate-200 rounded-xl">
+                                <table class="w-full text-left text-[11px] min-w-[560px]">
+                                    <thead class="bg-slate-100 text-slate-600 font-bold uppercase sticky top-0 z-10">
+                                        <tr><th class="p-2">Komponen</th><th class="p-2">Spesifikasi</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Harga</th><th class="p-2 text-right">Jumlah</th><th class="p-2"></th></tr>
                                     </thead>
-                                    <tbody id="excelPreviewBody" class="divide-y divide-slate-100 font-mono"></tbody>
+                                    <tbody id="excelPreviewBody" class="divide-y divide-slate-100"></tbody>
                                 </table>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] text-slate-400">Ubah langsung di tabel. Paste Excel akan mengganti seluruh isi tabel.</span>
+                                <button type="button" onclick="addExcelRow()" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg text-[11px] font-bold transition-all"><i class="fa-solid fa-plus mr-1"></i> Tambah Baris</button>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Estimasi Total Harga (Rp)</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Estimasi Total Harga (Rp) <span id="ordPriceHint" class="font-medium text-emerald-600"></span></label>
                                 <input type="number" id="ordPrice" value="${isEdit ? record.estimatedPrice : 0}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                             <div class="flex items-end">
@@ -1541,12 +1547,13 @@
             `);
 
             if (isEdit && record.excelData) {
-                window.tempExcelParsed = [...record.excelData];
+                window.tempExcelParsed = record.excelData.map(r => ({ component: r.component || '', spec: r.spec || '', qty: Number(r.qty) || 0, price: Number(r.price) || 0 }));
                 renderExcelPreviewTable(record.excelData);
             } else {
                 window.tempExcelParsed = [];
                 renderExcelPreviewTable([]);
             }
+            recalcOrderTotal();
         }
 
         function handleExcelPaste(e) {
@@ -1571,7 +1578,7 @@
 
             window.tempExcelParsed = parsedItems;
             renderExcelPreviewTable(parsedItems);
-            if (calculatedTotal > 0) document.getElementById('ordPrice').value = calculatedTotal;
+            recalcOrderTotal();
             showToast(`Berhasil mengonversi ${parsedItems.length} baris Excel!`, 'success');
         }
 
@@ -1579,17 +1586,64 @@
             const tbody = document.getElementById('excelPreviewBody');
             if (!tbody) return;
             if (items.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-slate-400 text-xs">Belum ada data tabel. Paste dari Excel di atas.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-slate-400 text-xs">Belum ada komponen. Paste dari Excel atau klik "Tambah Baris".</td></tr>`;
                 return;
             }
-            tbody.innerHTML = items.map(it => `
-                <tr class="hover:bg-slate-50">
-                    <td class="p-2 font-semibold text-slate-800">${it.component}</td>
-                    <td class="p-2 text-slate-600">${it.spec}</td>
-                    <td class="p-2 text-center">${it.qty}</td>
-                    <td class="p-2 text-right">${formatRupiah(it.price)}</td>
+            const inp = 'w-full px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg outline-none focus:border-blue-400 bg-white';
+            tbody.innerHTML = items.map((it, i) => `
+                <tr class="hover:bg-slate-50 align-middle">
+                    <td class="p-1.5 min-w-[110px]"><input type="text" value="${escapeHtml(it.component)}" placeholder="Komponen" oninput="updExcelRow(${i},'component',this.value)" class="${inp} font-semibold"></td>
+                    <td class="p-1.5 min-w-[170px]"><input type="text" value="${escapeHtml(it.spec)}" placeholder="Spesifikasi" oninput="updExcelRow(${i},'spec',this.value)" class="${inp}"></td>
+                    <td class="p-1.5 w-16"><input type="number" min="0" value="${Number(it.qty) || 0}" oninput="updExcelRow(${i},'qty',this.value)" class="${inp} text-center"></td>
+                    <td class="p-1.5 w-28"><input type="number" min="0" value="${Number(it.price) || 0}" oninput="updExcelRow(${i},'price',this.value)" class="${inp} text-right"></td>
+                    <td id="excelSub${i}" class="p-1.5 text-right font-bold font-mono whitespace-nowrap">${formatRupiah((Number(it.qty) || 0) * (Number(it.price) || 0))}</td>
+                    <td class="p-1.5 text-center"><button type="button" onclick="delExcelRow(${i})" title="Hapus baris" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white transition-all"><i class="fa-solid fa-trash text-[10px]"></i></button></td>
                 </tr>
             `).join('');
+        }
+
+        function updExcelRow(i, key, val) {
+            const row = (window.tempExcelParsed || [])[i];
+            if (!row) return;
+            row[key] = (key === 'qty' || key === 'price') ? Math.max(0, parseFloat(val) || 0) : val;
+            const sc = document.getElementById('excelSub' + i);
+            if (sc) sc.textContent = formatRupiah((Number(row.qty) || 0) * (Number(row.price) || 0));
+            recalcOrderTotal();
+        }
+
+        function addExcelRow() {
+            window.tempExcelParsed = window.tempExcelParsed || [];
+            window.tempExcelParsed.push({ component: '', spec: '', qty: 1, price: 0 });
+            renderExcelPreviewTable(window.tempExcelParsed);
+            recalcOrderTotal();
+            const rows = document.querySelectorAll('#excelPreviewBody tr');
+            const last = rows[rows.length - 1];
+            if (last) { last.scrollIntoView({ block: 'nearest' }); const f = last.querySelector('input'); if (f) f.focus(); }
+        }
+
+        function delExcelRow(i) {
+            if (!window.tempExcelParsed) return;
+            window.tempExcelParsed.splice(i, 1);
+            renderExcelPreviewTable(window.tempExcelParsed);
+            recalcOrderTotal();
+        }
+
+        // Total harga otomatis = jumlah (Qty x Harga) semua baris. Bila tabel kosong, total boleh diisi manual.
+        function recalcOrderTotal() {
+            const items = window.tempExcelParsed || [];
+            const el = document.getElementById('ordPrice');
+            if (!el) return;
+            const hint = document.getElementById('ordPriceHint');
+            if (items.length > 0) {
+                el.value = items.reduce((t, r) => t + (Number(r.qty) || 0) * (Number(r.price) || 0), 0);
+                el.readOnly = true;
+                el.classList.add('bg-slate-100');
+                if (hint) hint.textContent = '(otomatis dari tabel)';
+            } else {
+                el.readOnly = false;
+                el.classList.remove('bg-slate-100');
+                if (hint) hint.textContent = '(isi manual)';
+            }
         }
 
         async function saveOrderForm(e, editId) {
@@ -1601,7 +1655,7 @@
             const phoneVal = document.getElementById('ordPhone').value;
             const orderTypeVal = document.getElementById('ordType').value;
             const priceVal = parseInt(document.getElementById('ordPrice').value) || 0;
-            const excelDataVal = window.tempExcelParsed || [];
+            const excelDataVal = (window.tempExcelParsed || []).filter(r => (r.component || '').trim() || (r.spec || '').trim() || Number(r.price) > 0);
 
             const dbPayload = {
                 id: idVal,
@@ -2281,7 +2335,7 @@ function posRealtime(){POS.rt=true;let t;
  try{finClient.channel('pos-sync').on('postgres_changes',{event:'*',schema:'public'},()=>{clearTimeout(t);t=setTimeout(posLoad,600);}).subscribe();}catch(e){}
  setInterval(()=>{if(!document.hidden&&(appData.activeTab==='kasir'||appData.activeTab==='stok'))posLoad();},20000);}
 function posRefreshAll(){const t=appData.activeTab;
- if(t==='kasir'&&$p('posGrid')&&!POS.err){posRenderGrid();posRenderCart();}else if(t==='kasir'||t==='stok')renderApp();}
+ if(t==='kasir'&&$p('posGrid')&&!POS.err){posRenderGrid();posRenderCart();}else if(t==='kasir'||t==='stok')renderApp();else if(t==='transaksi'&&!POS.hist.loading)posHistLoad();}
 
 // ---------- Kait ke aplikasi utama ----------
 {const _ra=renderApp;renderApp=function(){const f=document.activeElement&&document.activeElement.id;_ra();
@@ -2438,11 +2492,12 @@ function posReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String
  // Kepala toko
  wrap(POS.s.store).forEach(x=>add(ctr(x),1));wrap(POS.s.addr).forEach(x=>add(ctr(x)));if(POS.s.phone)add(ctr('Telp. '+POS.s.phone));
  line('=');
+ if(sale.reprint){add(ctr('*** CETAK ULANG ***'),1);add(ctr('(SALINAN STRUK)'));line('-');}
  // Info transaksi
  add(lr('No. Struk',posReceiptNo(sale)));
  add(lr('Tanggal',p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear()));
  add(lr('Jam',p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds())));
- add(lr('Kasir',POS.s.cashier));
+ add(lr('Kasir',sale.cashier||POS.s.cashier));
  line('=');
  // Daftar item
  let n=0;sale.items.forEach((i,k)=>{n+=i.qty;wrap(i.name).forEach(x=>add(x,1));(i.sub||[]).forEach(s=>wrap(s,c-2).forEach(x=>add('  '+x)));add(lr(i.qty+' x '+R(i.price),R(i.qty*i.price)));if(k<sale.items.length-1)add('');});
@@ -2459,12 +2514,12 @@ function posReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String
 function posReceiptHtml(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
  const logo=POS.s.showLogo!==false?`<img src="${POS_LOGO}" alt="" style="display:block;margin:0 auto 8px;width:24mm;height:auto">`:'';
  return `<div id="posReceiptPrint" class="pos-rcpt" style="--cols:${c};box-sizing:content-box;background:#fff;color:#000;width:${c}ch;padding:10px 12px;font:12px/1.35 'Courier New',Courier,monospace">${logo}<pre style="margin:0;font:inherit;white-space:pre">${L.map(x=>(x.b?'<b>':'')+pe(x.t)+(x.b?'</b>':'')).join('\n')}</pre></div>`;}
-function posLast(auto){const s=POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}
- posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${auto?'<i class="fa-solid fa-circle-check text-emerald-500"></i> Transaksi Tersimpan':'Struk Terakhir'}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
+function posLast(auto,sale){const s=sale||POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}POS.cur=s;
+ posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${s.reprint?'<i class="fa-solid fa-print text-[#003b87]"></i> Cetak Ulang Struk':auto?'<i class="fa-solid fa-circle-check text-emerald-500"></i> Transaksi Tersimpan':'Struk Terakhir'}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
   <div class="bg-slate-100 rounded-2xl p-3 flex justify-center overflow-x-auto max-h-[60vh] overflow-y-auto">${posReceiptHtml(s)}</div>
   <div class="grid grid-cols-2 gap-2"><button onclick="posPrintBrowser()" class="${BTN}bg-[#003b87] text-white"><i class="fa-solid fa-print"></i> Cetak (Browser)</button>
   <button onclick="posPrintDirect()" class="${BTN}bg-emerald-600 text-white"><i class="fa-solid fa-plug"></i> Cetak Langsung</button></div>
-  <button onclick="posClose();posNew()" class="w-full ${BTN}bg-slate-100 text-slate-700">Selesai / Transaksi Baru</button>`);
+  ${s.reprint?`<button onclick="posClose()" class="w-full ${BTN}bg-slate-100 text-slate-700">Tutup</button>`:`<button onclick="posClose();posNew()" class="w-full ${BTN}bg-slate-100 text-slate-700">Selesai / Transaksi Baru</button>`}`);
  if(auto&&POS.printer)posPrintDirect();}
 function posPrintDoc(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
  const logo=POS.s.showLogo!==false?`<img src="${POS_LOGO}" alt="">`:'';
@@ -2477,7 +2532,7 @@ img{display:block;margin:0 auto 2mm;width:24mm;height:auto;image-rendering:pixel
 pre{margin:0;font-family:'Courier New',Courier,monospace;font-size:calc(48mm / ${c} / .6);line-height:1.4;white-space:pre;color:#000;font-weight:normal;-webkit-text-stroke:.12px #000}
 b{font-weight:bold;-webkit-text-stroke:.2px #000}
 </style></head><body><div class="r">${logo}<pre>${L.map(x=>(x.b?'<b>':'')+pe(x.t)+(x.b?'</b>':'')).join('\n')}</pre></div></body></html>`;}
-function posPrintBrowser(){const s=POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}
+function posPrintBrowser(){const s=POS.cur||POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}
  const old=$p('posPrintFrame');if(old)old.remove();
  const f=document.createElement('iframe');f.id='posPrintFrame';f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
  document.body.appendChild(f);const d=f.contentDocument;d.open();d.write(posPrintDoc(s));d.close();
@@ -2496,7 +2551,7 @@ async function posBytes(L){const o=[0x1B,0x40],enc=t=>[...t].map(ch=>ch.charCode
  if(POS.s.showLogo!==false){const lg=await posLogoBytes();if(lg.length){o.push(0x1B,0x61,1);for(let i=0;i<lg.length;i++)o.push(lg[i]);o.push(0x1B,0x61,0,0x0A);}}
  L.forEach(x=>{if(x.b)o.push(0x1B,0x45,1);o.push(...enc(x.t),0x0A);if(x.b)o.push(0x1B,0x45,0);});o.push(0x1B,0x64,3);return new Uint8Array(o);}
 async function posPrintDirect(){if(!POS.printer){alert('Printer belum terhubung. Hubungkan lewat tombol Printer.');return posPrinterModal();}
- try{await POS.printer.write(await posBytes(posReceipt(POS.last)));}catch(e){alert('Gagal mencetak: '+e.message);}}
+ try{await POS.printer.write(await posBytes(posReceipt(POS.cur||POS.last)));}catch(e){alert('Gagal mencetak: '+e.message);}}
 
 // ---------- Printer ----------
 const POS_BT_SERVICES=['000018f0-0000-1000-8000-00805f9b34fb','0000ff00-0000-1000-8000-00805f9b34fb','0000ffe0-0000-1000-8000-00805f9b34fb','0000fee7-0000-1000-8000-00805f9b34fb','e7810a71-73ae-499d-8c15-faa9aef0c3f2','49535343-fe7d-4ae5-8fa9-9fafd205e455'];
@@ -2590,6 +2645,98 @@ function posSettings(){const s=POS.s,o=POS.opt[s.account]||{in:{cashTypes:[]},ou
 function posSetAccount(a){POS.s.account=a;POS.cart=[];POS.s.cashKas='';POS.s.cashlessKas='';posSave();}
 function posSaveSettings(){const s=POS.s,g=id=>$p(id).value;Object.assign(s,{account:g('stAcc'),cashKas:g('stCash'),cashlessKas:g('stCashless'),store:g('stStore'),addr:g('stAddr'),phone:g('stPhone'),footer:g('stFooter'),cashier:g('stCashier'),cols:+g('stCols')||32,baud:+g('stBaud')||9600,showLogo:$p('stLogo').checked});posSave();posClose();renderApp();}
 
+// ---------- Riwayat Transaksi Kasir ----------
+POS.hist={rows:[],loaded:false,loading:false,err:'',sel:new Set(),f:{q:'',from:'',to:'',method:'',type:''}};
+function posSaleFromRow(r){return {id:r.id,at:new Date(r.created_at||(r.date+'T00:00:00')),date:String(r.date||'').slice(0,10),items:Array.isArray(r.items)?r.items:[],subtotal:+r.subtotal||0,discount:+r.discount||0,total:+r.total||0,paid:+r.paid||0,change:+r.change||0,method:r.pay_method||'cash',cashier:r.cashier||'',tx:r.transaction_id};}
+async function posHistLoad(){const H=POS.hist;H.loading=true;
+ if(!POS.loaded)await posLoad();
+ if(appData.activeTab==='transaksi')posHistRender();
+ try{let q=finClient.from('pos_sales').select('*').order('id',{ascending:false}).limit(1000);if(POS.s.account)q=q.eq('account',POS.s.account);
+  const r=await q;if(r.error){H.err=r.error.message;H.rows=[];}else{H.err='';H.rows=r.data.map(posSaleFromRow);}}
+ catch(e){H.err=e.message;H.rows=[];}
+ H.loading=false;H.loaded=true;const ids=new Set(H.rows.map(x=>x.id));[...H.sel].forEach(i=>{if(!ids.has(i))H.sel.delete(i);});
+ if(appData.activeTab==='transaksi')posHistRender();}
+function renderTabTransaksi(){
+ if(POS.err)return posErrBox();const f=POS.hist.f;
+ const sl=`${INP} !py-2 !text-xs`;
+ return `<div class="space-y-4"><div class="flex flex-wrap items-center justify-between gap-2"><div><h2 class="text-xl font-extrabold text-slate-800">Riwayat Transaksi Kasir</h2>
+  <p class="text-xs text-slate-500">Akun: <b>${pe(POS.s.account||'-')}</b> &bull; Cetak ulang struk yang hilang, atau hapus transaksi yang salah input.</p></div>
+  <button onclick="posHistLoad()" class="${BTN}bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fa-solid fa-rotate"></i> Muat Ulang</button></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-3 space-y-2.5">
+   <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+    <div class="relative col-span-2"><i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i><input id="histQ" value="${pe(f.q)}" oninput="posHistF('q',this.value)" placeholder="Cari no. struk, barang, ORD/SVC, kasir" class="${sl} pl-9" autocomplete="off"></div>
+    <input id="histFrom" type="date" value="${pe(f.from)}" onchange="posHistF('from',this.value)" class="${sl}" title="Dari tanggal">
+    <input id="histTo" type="date" value="${pe(f.to)}" onchange="posHistF('to',this.value)" class="${sl}" title="Sampai tanggal">
+    <select id="histMethod" onchange="posHistF('method',this.value)" class="${sl}"><option value="">Semua pembayaran</option><option value="cash" ${f.method==='cash'?'selected':''}>Tunai</option><option value="cashless" ${f.method==='cashless'?'selected':''}>Non-tunai</option></select>
+    <select id="histType" onchange="posHistF('type',this.value)" class="${sl}"><option value="">Semua jenis</option><option value="stock" ${f.type==='stock'?'selected':''}>Barang</option><option value="order" ${f.type==='order'?'selected':''}>Pesanan PC</option><option value="service" ${f.type==='service'?'selected':''}>Service</option><option value="manual" ${f.type==='manual'?'selected':''}>Item lain</option></select></div>
+   <div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] font-bold text-slate-400 mr-1">Cepat:</span>
+    ${[['today','Hari ini'],['7d','7 hari'],['month','Bulan ini'],['all','Semua']].map(([k,l])=>`<button onclick="posHistQuick('${k}')" class="${BTN}bg-slate-100 hover:bg-slate-200 text-slate-600">${l}</button>`).join('')}
+    <button onclick="posHistReset()" class="${BTN}text-rose-500 hover:bg-rose-50">Reset filter</button></div></div>
+  <div id="histSummary" class="text-xs text-slate-600"></div><div id="histBulk"></div>
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto"><div id="histTable"></div></div></div>`;}
+function posHistFiltered(){const f=POS.hist.f,q=f.q.trim().toLowerCase();
+ return POS.hist.rows.filter(s=>{if(f.from&&s.date<f.from)return false;if(f.to&&s.date>f.to)return false;
+  if(f.method&&(s.method==='cash'?'cash':'cashless')!==f.method)return false;
+  if(f.type&&!s.items.some(i=>(i.type||'stock')===f.type))return false;
+  if(q){const hay=[posReceiptNo(s),s.cashier].concat(s.items.map(i=>(i.name||'')+' '+(i.ref||''))).join(' ').toLowerCase();if(!hay.includes(q))return false;}
+  return true;});}
+function posHistF(k,v){POS.hist.f[k]=v;posHistRender();}
+function posHistReset(){POS.hist.f={q:'',from:'',to:'',method:'',type:''};if(appData.activeTab==='transaksi')renderApp();}
+function posHistQuick(k){const t=posToday(),d=new Date();let from='',to='';
+ if(k==='today'){from=to=t;}else if(k==='7d'){const x=new Date(d.getTime()-6*864e5-d.getTimezoneOffset()*6e4);from=x.toISOString().slice(0,10);to=t;}
+ else if(k==='month'){from=t.slice(0,8)+'01';to=t;}
+ POS.hist.f.from=from;POS.hist.f.to=to;if($p('histFrom'))$p('histFrom').value=from;if($p('histTo'))$p('histTo').value=to;posHistRender();}
+function posHistSel(id,on){on?POS.hist.sel.add(id):POS.hist.sel.delete(id);posHistRender();}
+function posHistSelAll(on){posHistFiltered().forEach(s=>on?POS.hist.sel.add(s.id):POS.hist.sel.delete(s.id));posHistRender();}
+function posHistClearSel(){POS.hist.sel.clear();posHistRender();}
+function posHistRender(){const t=$p('histTable');if(!t)return;const H=POS.hist,rows=posHistFiltered();
+ if(H.err){t.innerHTML=`<div class="p-5 text-sm text-amber-800 bg-amber-50 rounded-2xl"><b>Gagal membaca riwayat:</b> <span class="font-mono text-xs">${pe(H.err)}</span><div class="text-xs mt-1">Pastikan migrasi_kasir.sql sudah dijalankan.</div></div>`;$p('histSummary').innerHTML='';$p('histBulk').innerHTML='';return;}
+ const sum=rows.reduce((a,s)=>a+s.total,0),cash=rows.filter(s=>s.method==='cash').reduce((a,s)=>a+s.total,0);
+ $p('histSummary').innerHTML=H.loading&&!H.loaded?'Memuat...':`<b>${rows.length}</b> transaksi${rows.length!==H.rows.length?' (dari '+H.rows.length+')':''} &bull; Total <b class="text-[#003b87]">${posRp(sum)}</b> &bull; Tunai ${posRp(cash)} &bull; Non-tunai ${posRp(sum-cash)}`;
+ const n=H.sel.size;
+ $p('histBulk').innerHTML=n?`<div class="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-2.5"><span class="text-xs font-bold text-[#003b87]"><i class="fa-solid fa-square-check mr-1"></i>${n} transaksi dipilih</span><div class="flex gap-2"><button onclick="posHistClearSel()" class="${BTN}bg-white text-slate-600 border border-slate-200">Batal pilih</button><button onclick="posDeleteAsk([...POS.hist.sel])" class="${BTN}bg-rose-600 hover:bg-rose-700 text-white"><i class="fa-solid fa-trash"></i> Hapus terpilih</button></div></div>`:'';
+ const all=rows.length&&rows.every(s=>H.sel.has(s.id)),p2=x=>String(x).padStart(2,'0');
+ const tg={order:['PC','bg-blue-100 text-blue-700'],service:['SVC','bg-amber-100 text-amber-700'],manual:['LAIN','bg-slate-100 text-slate-600']};
+ t.innerHTML=`<table class="w-full text-xs min-w-[760px]"><thead class="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th class="p-3 w-8"><input type="checkbox" ${all?'checked':''} onchange="posHistSelAll(this.checked)" class="w-4 h-4"></th><th class="p-3 text-left">No. Struk</th><th class="p-3 text-left">Waktu</th><th class="p-3 text-left">Isi transaksi</th><th class="p-3 text-center">Bayar</th><th class="p-3 text-right">Total</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody>`+
+ (rows.map(s=>{const d=s.at,names=s.items.slice(0,2).map(i=>{const g=tg[i.type];return (g?`<span class="px-1.5 py-0.5 rounded text-[9px] font-bold mr-1 ${g[1]}">${g[0]}</span>`:'')+pe(i.name)+(i.ref?' <span class="font-mono text-slate-400">#'+pe(i.ref)+'</span>':'');}).join('<br>');
+  return `<tr class="border-t border-slate-100 ${H.sel.has(s.id)?'bg-blue-50':'hover:bg-slate-50'}"><td class="p-3"><input type="checkbox" ${H.sel.has(s.id)?'checked':''} onchange="posHistSel(${s.id},this.checked)" class="w-4 h-4"></td>
+  <td class="p-3 font-mono font-bold text-[#003b87] whitespace-nowrap">${pe(posReceiptNo(s))}</td>
+  <td class="p-3 whitespace-nowrap text-slate-600">${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}<div class="text-[10px] text-slate-400">${p2(d.getHours())}:${p2(d.getMinutes())} &bull; ${pe(s.cashier||'-')}</div></td>
+  <td class="p-3 text-slate-700 leading-snug">${names}${s.items.length>2?`<div class="text-[10px] text-slate-400">+${s.items.length-2} item lainnya</div>`:''}</td>
+  <td class="p-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${s.method==='cash'?'bg-emerald-100 text-emerald-700':'bg-violet-100 text-violet-700'}">${s.method==='cash'?'Tunai':'Non-tunai'}</span></td>
+  <td class="p-3 text-right font-mono font-bold whitespace-nowrap">${posRp(s.total)}</td>
+  <td class="p-3 whitespace-nowrap text-center"><button onclick="posReprintAsk(${s.id})" class="${BTN}bg-blue-100 text-blue-700 hover:bg-blue-200" title="Cetak ulang struk"><i class="fa-solid fa-print"></i> Cetak Ulang</button> <button onclick="posDeleteAsk([${s.id}])" class="${BTN}bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white" title="Hapus transaksi"><i class="fa-solid fa-trash"></i></button></td></tr>`;}).join('')
+  ||`<tr><td colspan="7" class="p-10 text-center text-slate-400">${H.loading?'Memuat...':'Tidak ada transaksi yang cocok.'}</td></tr>`)+`</tbody></table>`;}
+function posSaleSummaryHtml(s){const p2=x=>String(x).padStart(2,'0'),d=s.at;
+ return `<div class="bg-slate-50 rounded-xl p-3 text-xs space-y-1"><div class="flex justify-between"><span class="text-slate-500">No. Struk</span><b class="font-mono">${pe(posReceiptNo(s))}</b></div>
+  <div class="flex justify-between"><span class="text-slate-500">Waktu</span><b>${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}</b></div>
+  <div class="flex justify-between"><span class="text-slate-500">Total</span><b>${posRp(s.total)}</b></div>
+  <div class="border-t border-slate-200 pt-1 text-slate-600">${s.items.map(i=>pe(i.name)+(i.qty>1?' x'+i.qty:'')).join('<br>')}</div></div>`;}
+function posReprintAsk(id){const s=POS.hist.rows.find(x=>x.id===id);if(!s)return;
+ posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]"><i class="fa-solid fa-shield-halved mr-1"></i> Verifikasi Cetak Ulang</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
+  <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">Struk akan dicetak sebagai <b>SALINAN</b> dan diberi tanda <b>*** CETAK ULANG ***</b>. Lanjutkan hanya jika struk asli hilang atau rusak.</div>
+  ${posSaleSummaryHtml(s)}
+  <label class="flex items-start gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" id="rpOk" onchange="$p('rpGo').disabled=!this.checked" class="w-4 h-4 mt-0.5"> Saya mengonfirmasi struk ini perlu dicetak ulang.</label>
+  <div class="grid grid-cols-2 gap-2"><button onclick="posClose()" class="${BTN}bg-slate-100 text-slate-700 !py-3">Batal</button><button id="rpGo" disabled onclick="posReprintDo(${id})" class="${BTN}bg-[#003b87] text-white !py-3 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-print"></i> Ya, Cetak Ulang</button></div>`);}
+function posReprintDo(id){const s=POS.hist.rows.find(x=>x.id===id);if(!s)return;posClose();posLast(false,Object.assign({},s,{reprint:true}));}
+function posDeleteAsk(ids){const rows=ids.map(i=>POS.hist.rows.find(x=>x.id===i)).filter(Boolean);if(!rows.length)return;
+ const tot=rows.reduce((a,s)=>a+s.total,0);
+ posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-rose-600"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Hapus ${rows.length} Transaksi?</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
+  <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1"><div>Yang akan terjadi:</div><div>&bull; Transaksi dihapus permanen dari riwayat kasir.</div><div>&bull; Pemasukan ${posRp(tot)} dihapus dari Bendahara.</div><div>&bull; Stok barang yang terjual dikembalikan.</div><div>&bull; Pesanan PC / service di dalamnya kembali berstatus belum dibayar.</div><div class="font-bold">Tindakan ini tidak bisa dibatalkan.</div></div>
+  <div class="max-h-40 overflow-y-auto space-y-1.5">${rows.map(posSaleSummaryHtml).join('')}</div>
+  <label class="flex items-start gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" onchange="$p('dlGo').disabled=!this.checked" class="w-4 h-4 mt-0.5"> Saya mengerti dan ingin menghapus transaksi ini.</label>
+  <div class="grid grid-cols-2 gap-2"><button onclick="posClose()" class="${BTN}bg-slate-100 text-slate-700 !py-3">Batal</button><button id="dlGo" disabled onclick="posDeleteDo([${ids.join(',')}])" class="${BTN}bg-rose-600 text-white !py-3 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-trash"></i> Hapus Permanen</button></div>`);}
+async function posDeleteDo(ids){const b=$p('dlGo');if(b){b.disabled=true;b.innerText='Menghapus...';}
+ let ok=0;const errs=[];
+ for(const id of ids){const s=POS.hist.rows.find(x=>x.id===id);if(!s)continue;const no=posReceiptNo(s);
+  try{const d=await finClient.from('pos_sales').delete().eq('id',id).select();
+   if(d.error||!d.data||!d.data.length){errs.push(no+': '+(d.error?d.error.message:'database menolak penghapusan'));continue;}
+   if(s.tx){const m=await finClient.from('inventory_moves').delete().eq('transaction_id',s.tx),t=await finClient.from('transactions').delete().eq('id',s.tx);
+    if(m.error||t.error)errs.push(no+': riwayat terhapus, tetapi data Bendahara gagal dibersihkan ('+(m.error||t.error).message+'). Hapus manual di Bendahara.');}
+   ok++;POS.hist.sel.delete(id);}catch(e){errs.push(no+': '+e.message);}}
+ posClose();await posLoad();await posHistLoad();
+ alert(ok+' transaksi dihapus.'+(errs.length?'\n\nBermasalah:\n'+errs.join('\n'):''));}
+
 // ---------- Halaman Stok ----------
 function renderTabStok(){
  if(POS.err)return posErrBox();const l=posList(),tot=l.reduce((t,i)=>t+Math.max(0,i.qty)*i.avg,0);
@@ -2630,6 +2777,10 @@ async function posStokSave(mode,id){const g=i=>$p(i)?$p(i).value:'',a=POS.s.acco
  }catch(e){alert('Gagal menyimpan: '+e.message+(/barcode/i.test(e.message)?'\n\nJalankan migrasi_kasir.sql untuk menambah kolom barcode.':''));return;}
  posClose();await posLoad();}
 
+
+// ---------- Kait tab Transaksi ----------
+{const _r2=renderApp;renderApp=function(){_r2();if(appData.activeTab==='transaksi')posHistRender();};
+ const _s2=switchAdminTab;switchAdminTab=function(k){_s2(k);if(k==='transaksi')posHistLoad();};}
 </script>
 </body>
 </html>
