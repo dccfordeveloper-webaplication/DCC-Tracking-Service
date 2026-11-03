@@ -2336,7 +2336,7 @@
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
-            setTimeout(()=>{if(typeof posAutoUSB==='function')posAutoUSB().then(()=>posAutoSerial());},1200);
+            setTimeout(()=>{if(typeof posAutoUSB==='function')posAutoUSB().then(()=>posAutoSerial()).then(()=>posStationStart());},1200);
             renderApp();
             if (supabaseClient) {
                 await loadSupabaseData();
@@ -2576,8 +2576,9 @@ function posLast(auto,sale){const s=sale||POS.last;if(!s){alert('Belum ada trans
   <div class="bg-slate-100 rounded-2xl p-3 flex justify-center overflow-x-auto max-h-[60vh] overflow-y-auto">${posReceiptHtml(s)}</div>
   <div class="grid grid-cols-2 gap-2"><button onclick="posPrintBrowser()" class="${BTN}bg-[#003b87] text-white"><i class="fa-solid fa-print"></i> Cetak (Browser)</button>
   <button onclick="posPrintDirect()" class="${BTN}bg-emerald-600 text-white"><i class="fa-solid fa-plug"></i> Cetak Langsung</button></div>
+  ${!POS.printer?`<button onclick="posSendRemote()" class="w-full ${BTN}bg-amber-500 text-white"><i class="fa-solid fa-paper-plane"></i> Kirim ke Printer Kasir</button>`:''}
   ${s.reprint?`<button onclick="posClose()" class="w-full ${BTN}bg-slate-100 text-slate-700">Tutup</button>`:`<button onclick="posClose();posNew()" class="w-full ${BTN}bg-slate-100 text-slate-700">Selesai / Transaksi Baru</button>`}`);
- if(auto&&POS.printer)posPrintDirect();}
+ if(auto&&POS.printer)posPrintDirect();else if(auto&&POS.s.remote)posSendRemote(s);}
 function posPrintDoc(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
  const logo=POS.s.showLogo!==false?`<img src="${POS_LOGO}" alt="">`:'';
  return `<!doctype html><html><head><meta charset="utf-8"><title>Struk ${pe(posReceiptNo(sale))}</title><style>
@@ -2618,6 +2619,12 @@ function posPrinterLabel(){const b=$p('posPrinterBtn');if(b)b.innerHTML='<i clas
 function posPrinterModal(){const ok=!!POS.printer;
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">Printer Thermal 58mm (POS-58 / BT-58D)</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
  <div class="p-3 rounded-xl ${ok?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600'} text-xs font-bold">${ok?'Terhubung: '+pe(POS.printer.name)+' ('+POS.printer.type+')':'Belum terhubung'}</div>
+ <div class="rounded-xl border border-slate-200 p-3 space-y-2">
+  <div class="text-[11px] font-bold text-slate-700">Cetak Antar-Perangkat</div>
+  <label class="flex items-start gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" ${POS.s.station?'checked':''} onchange="posToggle('station')" class="w-4 h-4 mt-0.5"><span><b>Stasiun Cetak</b>: perangkat ini (PC dengan printer USB) mencetak struk kiriman perangkat lain. Tab harus tetap terbuka.</span></label>
+  <label class="flex items-start gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" ${POS.s.remote?'checked':''} onchange="posToggle('remote')" class="w-4 h-4 mt-0.5"><span><b>Kirim ke Stasiun Cetak</b>: struk otomatis dikirim ke PC printer (untuk HP / perangkat tanpa printer).</span></label>
+  ${POS.s.station?'<div class="text-[11px] font-bold '+(POS.printer?'text-emerald-600':'text-rose-500')+'">'+(POS.printer?'Stasiun aktif, menunggu struk...':'Stasiun aktif, tetapi printer belum terhubung. Hubungkan printer di bawah.')+'</div>':''}
+ </div>
  <button onclick="posConnectUSB()" class="w-full ${BTN}bg-[#003b87] text-white !py-3"><i class="fa-brands fa-usb"></i> Hubungkan via Kabel USB</button>
  <div class="grid grid-cols-2 gap-2"><button onclick="posTestPrint()" class="${BTN}bg-emerald-600 text-white"><i class="fa-solid fa-vial"></i> Cetak Uji</button>
  <button onclick="posDisconnect()" class="${BTN}bg-slate-100 text-slate-700" ${ok?'':'disabled'}>Putuskan</button></div>
@@ -2685,6 +2692,45 @@ async function posDisconnect(silent){const p=POS.printer;POS.printer=null;try{if
 async function posTestPrint(){if(!POS.printer){alert('Printer belum terhubung. Hubungkan dulu lewat tombol di atas.');return;}
  const sale={id:0,at:new Date(),items:[{name:'Cetak Uji',qty:1,price:1000}],subtotal:1000,discount:0,total:1000,paid:1000,change:0,method:'cash'};
  try{await POS.printer.write(await posBytes(posReceipt(sale)));}catch(e){POS.printer=null;posPrinterLabel();alert('Gagal mencetak: '+e.message+'\n\nSambungan terputus. Hubungkan ulang printer.');}}
+
+// ---------- Cetak Antar-Perangkat (relay via tabel print_jobs) ----------
+POS.st={ch:null,busy:false,timer:null,wl:null};
+async function posSendRemote(sale){
+ sale=sale||POS.cur||POS.last;if(!sale){alert('Belum ada struk.');return;}
+ const payload=JSON.parse(JSON.stringify({...sale,at:sale.at instanceof Date?sale.at.toISOString():sale.at}));
+ const r=await finClient.from('print_jobs').insert([{account:POS.s.account,payload,requested_by:POS.s.cashier}]).select();
+ if(r.error||!r.data||!r.data.length){alert('Gagal mengirim ke printer kasir: '+(r.error?r.error.message:'database tidak merespons')+'\n\nPastikan migrasi_print_jobs.sql sudah dijalankan di Supabase Bendahara.');return;}
+ const id=r.data[0].id;showToast('Struk dikirim ke printer kasir...','info');
+ setTimeout(async()=>{try{const c=await finClient.from('print_jobs').select('status,error').eq('id',id).single();const st=c.data&&c.data.status;
+  if(st==='done')showToast('Struk berhasil dicetak.','success');
+  else if(st==='error')alert('Printer kasir gagal mencetak: '+c.data.error);
+  else showToast('Printer kasir belum merespons. Pastikan PC Stasiun Cetak menyala, tab terbuka, dan printer terhubung.','error');}catch(e){}},8000);}
+async function posStationRun(){
+ if(!POS.s.station||!finClient||POS.st.busy||!POS.printer)return;POS.st.busy=true;
+ try{
+  const since=new Date(Date.now()-10*6e4).toISOString();
+  const q=await finClient.from('print_jobs').select('*').eq('status','pending').eq('account',POS.s.account).gte('created_at',since).order('id');
+  for(const j of (q.data||[])){
+   if(!POS.printer)break;
+   const c=await finClient.from('print_jobs').update({status:'printing',station:(POS.s.cashier||'')+' (stasiun)'}).eq('id',j.id).eq('status','pending').select();
+   if(!c.data||!c.data.length)continue; // sudah diambil stasiun lain
+   try{const sale={...j.payload,at:new Date(j.payload.at)};
+    await POS.printer.write(await posBytes(posReceipt(sale)));
+    await finClient.from('print_jobs').update({status:'done',printed_at:new Date().toISOString()}).eq('id',j.id);
+    showToast('Struk dari perangkat lain dicetak.','success');
+   }catch(e){await finClient.from('print_jobs').update({status:'error',error:String(e.message).slice(0,200)}).eq('id',j.id);}
+  }
+ }catch(e){console.error(e);}
+ POS.st.busy=false;}
+function posStationStop(){try{if(POS.st.ch){finClient.removeChannel(POS.st.ch);POS.st.ch=null;}}catch(e){}clearInterval(POS.st.timer);try{if(POS.st.wl){POS.st.wl.release();POS.st.wl=null;}}catch(e){}}
+function posStationStart(){posStationStop();if(!POS.s.station||!finClient)return;
+ POS.st.ch=finClient.channel('print_jobs_rt').on('postgres_changes',{event:'INSERT',schema:'public',table:'print_jobs'},()=>posStationRun()).subscribe();
+ POS.st.timer=setInterval(posStationRun,10000);
+ try{if(navigator.wakeLock)navigator.wakeLock.request('screen').then(w=>POS.st.wl=w).catch(()=>{});}catch(e){}
+ posStationRun();}
+function posToggle(k){POS.s[k]=!POS.s[k];
+ if(POS.s[k]){const o=k==='station'?'remote':'station';POS.s[o]=false;}
+ posSave();POS.s.station?posStationStart():posStationStop();posPrinterModal();}
 
 // ---------- Pengaturan ----------
 function posSettings(){const s=POS.s,o=POS.opt[s.account]||{in:{cashTypes:[]},out:{cashTypes:[]}},kas=[...new Set([...o.in.cashTypes,...o.out.cashTypes])];
