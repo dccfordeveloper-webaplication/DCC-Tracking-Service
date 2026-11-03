@@ -2698,6 +2698,7 @@ POS.st={ch:null,busy:false,timer:null,wl:null};
 async function posSendRemote(sale){
  sale=sale||POS.cur||POS.last;if(!sale){alert('Belum ada struk.');return;}
  const payload=JSON.parse(JSON.stringify({...sale,at:sale.at instanceof Date?sale.at.toISOString():sale.at}));
+ try{const by=await posBytes(posReceipt(sale));let bin='';for(let i=0;i<by.length;i+=8192)bin+=String.fromCharCode.apply(null,by.subarray(i,i+8192));payload.raw=btoa(bin);}catch(e){console.error('raw',e);}
  const r=await finClient.from('print_jobs').insert([{account:POS.s.account,payload,requested_by:POS.s.cashier}]).select();
  if(r.error||!r.data||!r.data.length){alert('Gagal mengirim ke printer kasir: '+(r.error?r.error.message:'database tidak merespons')+'\n\nPastikan migrasi_print_jobs.sql sudah dijalankan di Supabase Bendahara.');return;}
  const id=r.data[0].id;showToast('Struk dikirim ke printer kasir...','info');
