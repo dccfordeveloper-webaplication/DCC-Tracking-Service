@@ -239,6 +239,7 @@
                         customerName: o.customer_name, 
                         room: o.room, 
                         phone: o.phone || '',
+                        receiver: o.receiver_name || '',
                         orderType: o.order_type, 
                         estimatedPrice: o.estimated_price, 
                         costPrice: Number(o.cost_price) || 0,
@@ -253,6 +254,7 @@
                         customerName: s.customer_name, 
                         room: s.room, 
                         phone: s.phone || '',
+                        receiver: s.receiver_name || '',
                         kelengkapan: s.kelengkapan || '', 
                         notes: s.notes || '', 
                         estimatedPrice: s.estimated_price, 
@@ -1598,6 +1600,10 @@
                                 <input type="text" id="ordType" value="${isEdit ? record.orderType : ''}" placeholder="mis: PC Full Set" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1"><i class="fa-solid fa-user-check text-slate-400 mr-1"></i> Nama Penerima <span class="font-normal text-slate-400">(staf yang menerima transaksi ini)</span></label>
+                            <input type="text" id="ordReceiver" value="${isEdit && record.receiver ? escapeHtml(record.receiver) : ''}" ${isEdit ? '' : 'required'} placeholder="mis: nama admin / staf DCC" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                        </div>
                         <div class="space-y-2 border-t border-b border-slate-100 py-4">
                             <label class="block text-xs font-bold text-blue-950"><i class="fa-solid fa-file-excel text-emerald-600 mr-1"></i> Paste Tabel Rancangan dari Excel</label>
                             <textarea id="excelPasteArea" onpaste="handleExcelPaste(event)" placeholder="Tempel (Ctrl+V) tabel spesifikasi Excel di sini..." class="w-full h-20 p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl outline-none"></textarea>
@@ -1731,6 +1737,14 @@
             updProfit('ordPrice', 'ordCost', 'ordProfitInfo');
         }
 
+        // Pesan galat simpan: beri petunjuk migrasi bila kolom di Supabase belum ada
+        function saveErrMsg(err) {
+            const m = (err && err.message) || '';
+            if (/receiver_name/.test(m)) return 'Kolom receiver_name belum ada. Jalankan migrasi_nama_penerima.sql di Supabase dulu.';
+            if (/cost_price/.test(m)) return 'Kolom cost_price belum ada. Jalankan migrasi_beban_biaya.sql di Supabase dulu.';
+            return 'Gagal menyimpan: ' + m;
+        }
+
         async function saveOrderForm(e, editId) {
             e.preventDefault();
             const idVal = document.getElementById('ordId').value;
@@ -1738,6 +1752,7 @@
             const customerNameVal = document.getElementById('ordCustomer').value;
             const roomVal = document.getElementById('ordRoom').value;
             const phoneVal = document.getElementById('ordPhone').value;
+            const receiverVal = document.getElementById('ordReceiver').value.trim();
             const orderTypeVal = document.getElementById('ordType').value;
             const priceVal = parseInt(document.getElementById('ordPrice').value) || 0;
             const costVal = Math.max(0, parseInt(document.getElementById('ordCost').value) || 0);
@@ -1753,6 +1768,7 @@
                 customer_name: customerNameVal,
                 room: roomVal,
                 phone: phoneVal,
+                receiver_name: receiverVal,
                 order_type: orderTypeVal,
                 estimated_price: priceVal,
                 cost_price: costVal,
@@ -1770,7 +1786,7 @@
 
                 if (res.error) {
                     console.error("Error Simpan Order Supabase:", res.error);
-                    showToast(/cost_price/.test(res.error.message) ? 'Kolom cost_price belum ada. Jalankan migrasi_beban_biaya.sql di Supabase dulu.' : 'Gagal menyimpan: ' + res.error.message, 'error');
+                    showToast(saveErrMsg(res.error), 'error');
                     return;
                 }
                 await loadSupabaseData();
@@ -1778,10 +1794,10 @@
                 if (editId) {
                     const idx = appData.orders.findIndex(o => o.id === editId);
                     if (idx !== -1) {
-                        appData.orders[idx] = { ...appData.orders[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, costPrice: costVal, excelData: excelDataVal };
+                        appData.orders[idx] = { ...appData.orders[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, receiver: receiverVal, orderType: orderTypeVal, estimatedPrice: priceVal, costPrice: costVal, excelData: excelDataVal };
                     }
                 } else {
-                    appData.orders.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, orderType: orderTypeVal, estimatedPrice: priceVal, costPrice: costVal, progress: 0, excelData: excelDataVal });
+                    appData.orders.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, receiver: receiverVal, orderType: orderTypeVal, estimatedPrice: priceVal, costPrice: costVal, progress: 0, excelData: excelDataVal });
                 }
                 renderApp();
             }
@@ -1817,7 +1833,7 @@
         function viewOrderDetail(id) {
             const item = appData.orders.find(o => o.id === id);
             if (!item) return;
-            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-blue-700">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerOrderDetails(item, true)}</div>`);
+            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-blue-700">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3><p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-user-check mr-1"></i>Penerima: <b class="text-slate-700">${item.receiver ? escapeHtml(item.receiver) : '-'}</b></p></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerOrderDetails(item, true)}</div>`);
         }
 
         function openServiceModal(serviceId = null) {
@@ -1856,6 +1872,10 @@
                                 <label class="block text-xs font-bold text-slate-600 mb-1">No. WhatsApp</label>
                                 <input type="text" id="svcPhone" value="${isEdit && record.phone ? record.phone : ''}" placeholder="mis: 08123456789" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1"><i class="fa-solid fa-user-check text-slate-400 mr-1"></i> Nama Penerima <span class="font-normal text-slate-400">(staf yang menerima transaksi ini)</span></label>
+                            <input type="text" id="svcReceiver" value="${isEdit && record.receiver ? escapeHtml(record.receiver) : ''}" ${isEdit ? '' : 'required'} placeholder="mis: nama admin / staf DCC" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                         </div>
                         <div class="space-y-3 border-t border-b border-slate-100 py-4">
                             <div class="flex justify-between items-center">
@@ -1938,6 +1958,7 @@
             const customerNameVal = document.getElementById('svcCustomer').value;
             const roomVal = document.getElementById('svcRoom').value;
             const phoneVal = document.getElementById('svcPhone').value;
+            const receiverVal = document.getElementById('svcReceiver').value.trim();
             const kelengkapanVal = document.getElementById('svcKelengkapan').value;
             const notesVal = document.getElementById('svcNotes').value;
             const priceVal = parseInt(document.getElementById('svcPrice').value) || 0;
@@ -1953,6 +1974,7 @@
                 customer_name: customerNameVal,
                 room: roomVal,
                 phone: phoneVal,
+                receiver_name: receiverVal,
                 kelengkapan: kelengkapanVal,
                 notes: notesVal,
                 estimated_price: priceVal,
@@ -1971,7 +1993,7 @@
 
                 if (res.error) {
                     console.error("Error Simpan Service Supabase:", res.error);
-                    showToast(/cost_price/.test(res.error.message) ? 'Kolom cost_price belum ada. Jalankan migrasi_beban_biaya.sql di Supabase dulu.' : 'Gagal menyimpan: ' + res.error.message, 'error');
+                    showToast(saveErrMsg(res.error), 'error');
                     return;
                 }
                 await loadSupabaseData();
@@ -1979,10 +2001,10 @@
                 if (editId) {
                     const idx = appData.services.findIndex(s => s.id === editId);
                     if (idx !== -1) {
-                        appData.services[idx] = { ...appData.services[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, costPrice: costVal, items: items };
+                        appData.services[idx] = { ...appData.services[idx], date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, receiver: receiverVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, costPrice: costVal, items: items };
                     }
                 } else {
-                    appData.services.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, costPrice: costVal, progress: 0, items: items });
+                    appData.services.unshift({ id: idVal, date: dateVal, customerName: customerNameVal, room: roomVal, phone: phoneVal, receiver: receiverVal, kelengkapan: kelengkapanVal, notes: notesVal, estimatedPrice: priceVal, costPrice: costVal, progress: 0, items: items });
                 }
                 renderApp();
             }
@@ -2018,7 +2040,7 @@
         function viewServiceDetail(id) {
             const item = appData.services.find(s => s.id === id);
             if (!item) return;
-            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item, true)}</div>`);
+            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3><p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-user-check mr-1"></i>Penerima: <b class="text-slate-700">${item.receiver ? escapeHtml(item.receiver) : '-'}</b></p></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item, true)}</div>`);
         }
 
         // ==========================================
