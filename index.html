@@ -80,6 +80,26 @@
             border-radius: 4px;
         }
 
+        /* ===== Scroll rapi: tabel (vertikal + horizontal) dan daftar kartu ===== */
+        .table-scroll {
+            max-height: var(--scroll-h, 68vh);
+            overflow: auto;
+            overscroll-behavior-x: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+        /* Header tabel tetap terlihat saat baris di-scroll */
+        .table-scroll thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: var(--th-bg, #f8fafc);
+            box-shadow: 0 1px 0 #e2e8f0;
+        }
+        .table-scroll, .overflow-x-auto, .overflow-y-auto, .overflow-auto {
+            scrollbar-width: thin;
+            scrollbar-color: #0058c4 #f1f5f9;
+        }
+
         /* ===== Cetak / Print: A4 dengan margin tetap, otomatis multi-halaman ===== */
         #printHost { display: none; }
         .no-print { }
@@ -354,6 +374,11 @@
         function renderApp() {
             const app = document.getElementById('app');
             if (!app) return;
+            // Simpan posisi scroll tabel/daftar supaya tidak melompat ke atas saat render ulang
+            const SCROLL_SEL = '.table-scroll, #riwayatServiceList, #riwayatOrderList';
+            const keepScroll = (window.__scrollTab === appData.activeTab && appData.currentRole !== 'customer')
+                ? Array.from(app.querySelectorAll(SCROLL_SEL)).map(el => [el.scrollTop, el.scrollLeft]) : [];
+            window.__scrollTab = appData.activeTab;
             app.className = "flex-grow flex flex-col min-h-screen fade-in";
             if (appData.currentRole === 'customer') {
                 app.innerHTML = renderCustomerView();
@@ -363,6 +388,11 @@
                 attachAdminEvents();
                 if (appData.activeTab === 'rekapan') setTimeout(initRekapanCharts, 100);
             }
+            if (keepScroll.length) requestAnimationFrame(() => {
+                app.querySelectorAll(SCROLL_SEL).forEach((el, i) => {
+                    if (keepScroll[i]) { el.scrollTop = keepScroll[i][0]; el.scrollLeft = keepScroll[i][1]; }
+                });
+            });
         }
 
         function renderCustomerView() {
@@ -507,7 +537,7 @@
                     </div>
 
                     <!-- Pembungkus scroll horizontal -->
-                    <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+                    <div class="table-scroll border border-slate-200 rounded-2xl shadow-sm" style="--scroll-h:50vh;--th-bg:#f1f5f9">
                         <table class="w-full text-left text-xs min-w-[500px]">
                             <thead class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
                                 <tr>
@@ -729,7 +759,7 @@
                     </div>
 
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="overflow-x-auto">
+                        <div class="table-scroll">
                             <table class="w-full text-left text-xs min-w-[800px]" id="orderTable">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
@@ -819,7 +849,7 @@
                     </div>
 
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="overflow-x-auto">
+                        <div class="table-scroll">
                             <table class="w-full text-left text-xs min-w-[800px]" id="serviceTable">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
@@ -921,7 +951,7 @@
                             </h3>
                             <span class="text-xs font-mono font-bold bg-blue-50 text-blue-800 px-2.5 py-0.5 rounded-full" id="countOrdInvoice">${appData.orders.length} Transaksi</span>
                         </div>
-                        <div class="overflow-x-auto">
+                        <div class="table-scroll" style="--scroll-h:48vh">
                             <table class="w-full text-left text-xs min-w-[700px]">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
@@ -949,7 +979,7 @@
                             </h3>
                             <span class="text-xs font-mono font-bold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full" id="countSvcInvoice">${appData.services.length} Transaksi</span>
                         </div>
-                        <div class="overflow-x-auto">
+                        <div class="table-scroll" style="--scroll-h:48vh">
                             <table class="w-full text-left text-xs min-w-[700px]">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
@@ -2508,7 +2538,7 @@ do $$ begin alter publication supabase_realtime add table public.price_list; exc
                     </div>
 
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="overflow-x-auto">
+                        <div class="table-scroll">
                             <table class="w-full text-left text-xs min-w-[700px]">
                                 <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
                                     <tr>
@@ -3309,7 +3339,7 @@ function renderTabTransaksi(){
     ${[['today','Hari ini'],['7d','7 hari'],['month','Bulan ini'],['all','Semua']].map(([k,l])=>`<button onclick="posHistQuick('${k}')" class="${BTN}bg-slate-100 hover:bg-slate-200 text-slate-600">${l}</button>`).join('')}
     <button onclick="posHistReset()" class="${BTN}text-rose-500 hover:bg-rose-50">Reset filter</button></div></div>
   <div id="histSummary" class="text-xs text-slate-600"></div><div id="histBulk"></div>
-  <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto"><div id="histTable"></div></div></div>`;}
+  <div class="bg-white rounded-2xl border border-slate-200 table-scroll"><div id="histTable"></div></div></div>`;}
 function posHistFiltered(){const f=POS.hist.f,q=f.q.trim().toLowerCase();
  return POS.hist.rows.filter(s=>{if(f.from&&s.date<f.from)return false;if(f.to&&s.date>f.to)return false;
   if(f.method&&(s.method==='cash'?'cash':'cashless')!==f.method)return false;
@@ -3382,7 +3412,7 @@ function renderTabStok(){
   <div class="flex gap-2"><select onchange="posSetAccount(this.value);renderApp()" class="${INP} !w-auto !py-2 font-semibold">${POS.accounts.map(a=>`<option ${a===POS.s.account?'selected':''}>${pe(a)}</option>`).join('')}</select>
   <button onclick="posStokForm('new')" class="${BTN}bg-dcc-accent hover:bg-dcc-accentHover text-white"><i class="fa-solid fa-plus"></i> Barang</button></div></div>
   <div class="bg-gradient-to-r from-[#003b87] to-[#0058c4] text-white rounded-2xl p-4"><span class="text-[11px] text-blue-200 uppercase">Nilai Persediaan (HPP rata-rata)</span><div class="text-3xl font-extrabold font-mono">${posRp(tot)}</div></div>
-  <div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th class="p-3 text-left">Barang</th><th class="p-3">Stok</th><th class="p-3 text-right">HPP</th><th class="p-3 text-right">Harga Jual</th><th class="p-3 text-right">Margin</th><th class="p-3"></th></tr></thead><tbody>
+  <div class="bg-white rounded-2xl border border-slate-200 table-scroll"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th class="p-3 text-left">Barang</th><th class="p-3">Stok</th><th class="p-3 text-right">HPP</th><th class="p-3 text-right">Harga Jual</th><th class="p-3 text-right">Margin</th><th class="p-3"></th></tr></thead><tbody>
   ${l.map(i=>{const m=i.avg>0?(i.sellPrice-i.avg)/i.avg*100:null;return `<tr class="border-t border-slate-100"><td class="p-3 font-semibold">${pe(i.name)}<div class="text-[10px] text-slate-400">${i.barcode?pe(i.barcode):'tanpa barcode'}</div></td><td class="p-3 text-center font-bold ${i.qty<=0?'text-rose-500':''}">${+i.qty.toFixed(2)} ${pe(i.unit)}</td><td class="p-3 text-right">${posRp(i.avg)}</td><td class="p-3 text-right font-bold text-[#0058c4]">${posRp(i.sellPrice)}</td><td class="p-3 text-right ${m===null?'text-slate-400':m>=10?'text-emerald-600':'text-rose-500'} font-bold">${m===null?'-':m.toFixed(1)+'%'}</td>
   <td class="p-3 text-right whitespace-nowrap"><button onclick="posStokForm('buy',${i.id})" class="${BTN}bg-blue-100 text-blue-700">Beli</button> <button onclick="posStokForm('adj',${i.id})" class="${BTN}bg-amber-100 text-amber-700">Sesuaikan</button> <button onclick="posStokForm('edit',${i.id})" class="${BTN}bg-slate-100 text-slate-700">Edit</button></td></tr>`;}).join('')||'<tr><td colspan="6" class="p-8 text-center text-slate-400">Belum ada barang.</td></tr>'}</tbody></table></div></div>`;}
 function posStokForm(mode,id){const it=POS.items.find(i=>i.id===id)||{},o=POS.opt[POS.s.account]||{out:{cashTypes:[]}};
