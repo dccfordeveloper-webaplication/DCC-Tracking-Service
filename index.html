@@ -576,7 +576,8 @@
             return `
                 <div class="min-h-screen bg-[#00459c] text-white flex flex-col fade-in">
                     <header class="bg-[#003b87] text-white sticky top-0 z-30 shadow-lg border-b border-white/10 backdrop-blur-md bg-opacity-95">
-                        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 space-y-3">
+                          <div class="flex items-center justify-between gap-3">
                             <div class="flex items-center gap-3">
                                 <img src="DCSC.png" alt="DCC Store" class="w-11 h-11 rounded-full bg-white/10 p-1 border-2 border-blue-300/40 object-contain shadow-inner" onerror="this.style.display='none'">
                                 <div>
@@ -589,7 +590,14 @@
                             </div>
 
                             <div class="flex items-center gap-3">
-                                <div class="bg-white/10 p-1 rounded-2xl border border-white/15 flex gap-1">
+                                <button id="adminLogoutBtn" class="w-9 h-9 rounded-full bg-white/10 hover:bg-rose-600 text-white flex items-center justify-center transition-all border border-white/20 hover:scale-105" title="Keluar">
+                                    <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                                </button>
+                            </div>
+                          </div>
+
+                          <div class="w-full">
+                                <div class="w-full bg-white/10 p-1 rounded-2xl border border-white/15 flex gap-1 overflow-x-auto">
                                     ${renderNavBtn('beranda', 'Beranda', 'fa-house')}
                                     ${renderNavBtn('pemesanan', 'Pemesanan', 'fa-cart-shopping')}
                                     ${renderNavBtn('service', 'Service', 'fa-wrench')}
@@ -601,11 +609,7 @@
                                     ${renderNavBtn('riwayat', 'Riwayat', 'fa-clock-rotate-left')}
                                     ${renderNavBtn('rekapan', 'Rekapan', 'fa-chart-line')}
                                 </div>
-
-                                <button id="adminLogoutBtn" class="w-9 h-9 rounded-full bg-white/10 hover:bg-rose-600 text-white flex items-center justify-center transition-all border border-white/20 hover:scale-105" title="Keluar">
-                                    <i class="fa-solid fa-right-from-bracket text-xs"></i>
-                                </button>
-                            </div>
+                          </div>
                         </div>
                     </header>
 
@@ -625,7 +629,7 @@
         function renderNavBtn(tabKey, label, icon) {
             const isActive = appData.activeTab === tabKey;
             return `
-                <button onclick="switchAdminTab('${tabKey}')" class="px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all duration-300 flex items-center gap-1.5 ${
+                <button onclick="switchAdminTab('${tabKey}')" class="flex-1 flex-shrink-0 justify-center whitespace-nowrap px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all duration-300 flex items-center gap-1.5 ${
                     isActive ? 'bg-white text-[#003b87] shadow-md font-bold scale-105' : 'text-blue-100 hover:bg-white/10'
                 }">
                     <i class="fa-solid ${icon}"></i> <span class="hidden md:inline">${label}</span>
