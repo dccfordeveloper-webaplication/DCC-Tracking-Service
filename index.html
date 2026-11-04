@@ -253,6 +253,7 @@
                 supabaseClient.channel('public-db-changes')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadSupabaseData())
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => loadSupabaseData())
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'price_list' }, () => loadPriceList())
                     .subscribe();
             } catch (e) {
                 console.error("Realtime subscription error:", e);
@@ -594,6 +595,7 @@
                                     ${renderNavBtn('service', 'Service', 'fa-wrench')}
                                     ${renderNavBtn('kasir', 'Kasir', 'fa-cash-register')}
                                     ${renderNavBtn('stok', 'Stok', 'fa-boxes-stacked')}
+                                    ${renderNavBtn('harga', 'Harga', 'fa-tags')}
                                     ${renderNavBtn('transaksi', 'Transaksi', 'fa-receipt')}
                                     ${renderNavBtn('invoice', 'Invoice', 'fa-file-invoice-dollar')}
                                     ${renderNavBtn('riwayat', 'Riwayat', 'fa-clock-rotate-left')}
@@ -634,6 +636,7 @@
         function switchAdminTab(tabKey) {
             appData.activeTab = tabKey;
             renderApp();
+            if (tabKey === 'harga') loadPriceList();
         }
 
         function renderAdminTabContent() {
@@ -643,6 +646,7 @@
                 case 'service': return renderTabService();
                 case 'kasir': return renderTabKasir();
                 case 'stok': return renderTabStok();
+                case 'harga': return renderTabHarga();
                 case 'transaksi': return renderTabTransaksi();
                 case 'invoice': return renderTabInvoice();
                 case 'riwayat': return renderTabRiwayat();
@@ -1836,7 +1840,10 @@
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Estimasi Biaya Service (Rp)</label>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-xs font-bold text-slate-600">Estimasi Biaya Service (Rp)</label>
+                                    <button type="button" onclick="togglePricePicker()" class="text-[11px] font-bold text-[#0058c4] hover:text-blue-800 flex items-center gap-1"><i class="fa-solid fa-tags"></i> Pilih dari Daftar Harga</button>
+                                </div>
                                 <input type="number" id="svcPrice" value="${isEdit ? record.estimatedPrice : 0}" oninput="updProfit('svcPrice','svcCost','svcProfitInfo')" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                             <div>
@@ -1844,12 +1851,15 @@
                                 <input type="number" min="0" id="svcCost" value="${isEdit && record.costPrice ? record.costPrice : 0}" oninput="updProfit('svcPrice','svcCost','svcProfitInfo')" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                         </div>
+                        <div id="pricePickerPanel" class="hidden border border-blue-200 bg-blue-50/40 rounded-2xl p-3 space-y-2"></div>
+                        <div id="pricePickedChips"></div>
                         <div id="svcProfitInfo"></div>
                         <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">Simpan Service</button>
                     </form>
                 </div>
             `);
 
+            PICK.q = ''; PICK.cat = 'all'; PICK.picked = [];
             const container = document.getElementById('serviceItemsContainer');
             if (isEdit && record.items && record.items.length > 0) {
                 record.items.forEach(it => addServiceItemRow(it.name, it.issue));
@@ -2347,9 +2357,364 @@
             }
         }
 
+
+        // ==========================================
+        // DAFTAR HARGA (barang & jasa service)
+        // ==========================================
+        const PRICE_LS_KEY = 'dcc_price_list_local';
+        const PRICE = { items: [], mode: 'cloud', loaded: false, q: '', cat: 'all', sort: 'name' };
+        const PICK = { q: '', cat: 'all', picked: [] };
+
+        function priceReadLocal() {
+            try { return JSON.parse(localStorage.getItem(PRICE_LS_KEY) || '[]'); } catch (e) { return []; }
+        }
+        function priceWriteLocal() {
+            try { localStorage.setItem(PRICE_LS_KEY, JSON.stringify(PRICE.items)); } catch (e) {}
+        }
+
+        async function loadPriceList() {
+            let cloudOk = false;
+            if (supabaseClient) {
+                try {
+                    const { data, error } = await supabaseClient.from('price_list').select('*').order('name', { ascending: true });
+                    if (!error && data) {
+                        PRICE.items = data.map(r => ({ id: String(r.id), name: r.name || '', category: r.category || 'Jasa', unit: r.unit || '', price: Number(r.price) || 0, note: r.note || '' }));
+                        PRICE.mode = 'cloud';
+                        cloudOk = true;
+                    } else if (error) {
+                        console.warn('Tabel price_list belum siap, memakai penyimpanan lokal:', error.message);
+                    }
+                } catch (e) { console.warn('Gagal memuat daftar harga:', e); }
+            }
+            if (!cloudOk) {
+                PRICE.mode = 'local';
+                PRICE.items = priceReadLocal();
+            }
+            PRICE.loaded = true;
+            if (appData.activeTab === 'harga') renderApp();
+            pickRenderList();
+        }
+
+        function priceFiltered() {
+            const kw = PRICE.q.trim().toLowerCase();
+            let list = PRICE.items.filter(i => {
+                if (PRICE.cat !== 'all' && i.category !== PRICE.cat) return false;
+                if (!kw) return true;
+                return [i.name, i.unit, i.note, i.category].some(v => String(v || '').toLowerCase().includes(kw));
+            });
+            if (PRICE.sort === 'low') list.sort((a, b) => a.price - b.price);
+            else if (PRICE.sort === 'high') list.sort((a, b) => b.price - a.price);
+            else list.sort((a, b) => a.name.localeCompare(b.name, 'id'));
+            return list;
+        }
+
+        function priceCatBadge(cat) {
+            return cat === 'Barang'
+                ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Barang</span>'
+                : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">Jasa</span>';
+        }
+
+        function renderPriceRows(list) {
+            if (list.length === 0) {
+                return `<tr><td colspan="6" class="p-8 text-center text-slate-400">${PRICE.items.length === 0 ? 'Belum ada daftar harga. Klik "Tambah Harga" untuk mulai.' : 'Tidak ada data yang cocok dengan pencarian/filter.'}</td></tr>`;
+            }
+            return list.map(i => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="p-3.5 font-bold text-slate-800">${escapeHtml(i.name)}</td>
+                    <td class="p-3.5 whitespace-nowrap">${priceCatBadge(i.category)}</td>
+                    <td class="p-3.5 text-slate-600 whitespace-nowrap">${escapeHtml(i.unit) || '-'}</td>
+                    <td class="p-3.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">${formatRupiah(i.price)}</td>
+                    <td class="p-3.5 text-slate-500">${escapeHtml(i.note) || '-'}</td>
+                    <td class="p-3.5 whitespace-nowrap">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="openPriceModal('${i.id}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center" title="Edit">
+                                <i class="fa-solid fa-pen-to-square text-xs"></i>
+                            </button>
+                            <button onclick="deletePriceItem('${i.id}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center" title="Hapus">
+                                <i class="fa-solid fa-trash text-xs"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderTabHarga() {
+            const chip = (key, label) => `<button onclick="priceSetCat('${key}')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${PRICE.cat === key ? 'bg-[#0058c4] text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${label}</button>`;
+            const list = priceFiltered();
+            const localCount = priceReadLocal().length;
+            let banner = '';
+            if (PRICE.mode === 'local') {
+                banner = `<div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">Tabel <b>price_list</b> belum ada di Supabase, jadi daftar harga sementara disimpan <b>di browser ini saja</b>. Jalankan <code>migrasi_daftar_harga.sql</code> di Supabase lalu muat ulang halaman agar tersimpan di cloud dan terlihat di semua perangkat.</div>`;
+            } else if (localCount > 0) {
+                banner = `<div class="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex flex-wrap items-center justify-between gap-2"><span>Ada <b>${localCount}</b> data harga tersimpan lokal di browser ini.</span><button onclick="priceMigrateLocal()" class="px-3 py-1.5 rounded-lg bg-[#0058c4] text-white font-bold">Pindahkan ke cloud</button></div>`;
+            }
+            return `
+                <div class="space-y-6">
+                    ${banner}
+                    <div class="flex flex-col gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+                            <div class="relative flex-grow max-w-md">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                <input type="text" id="searchPriceInput" value="${escapeHtml(PRICE.q)}" oninput="priceOnSearch(this.value)" placeholder="Cari nama barang / jasa, satuan, catatan..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium">
+                            </div>
+                            <button onclick="openPriceModal()" class="px-4 py-2 bg-dcc-accent hover:bg-dcc-accentHover text-white rounded-xl text-xs font-bold transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 shadow-md">
+                                <i class="fa-solid fa-plus"></i> Tambah Harga
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                ${chip('all', 'Semua')}${chip('Barang', 'Barang')}${chip('Jasa', 'Jasa Service')}
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <span id="priceCount" class="text-slate-500 font-semibold">${list.length} item</span>
+                                <select onchange="priceSetSort(this.value)" class="px-2 py-1.5 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
+                                    <option value="name" ${PRICE.sort === 'name' ? 'selected' : ''}>Urut: Nama A-Z</option>
+                                    <option value="low" ${PRICE.sort === 'low' ? 'selected' : ''}>Urut: Termurah</option>
+                                    <option value="high" ${PRICE.sort === 'high' ? 'selected' : ''}>Urut: Termahal</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs min-w-[700px]">
+                                <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
+                                    <tr>
+                                        <th class="p-3.5">Nama Barang / Jasa</th>
+                                        <th class="p-3.5">Kategori</th>
+                                        <th class="p-3.5">Satuan</th>
+                                        <th class="p-3.5 text-right">Harga</th>
+                                        <th class="p-3.5">Catatan</th>
+                                        <th class="p-3.5 text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100" id="priceTableBody">${renderPriceRows(list)}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function priceOnSearch(v) {
+            PRICE.q = v;
+            const list = priceFiltered();
+            const body = document.getElementById('priceTableBody');
+            if (body) body.innerHTML = renderPriceRows(list);
+            const cnt = document.getElementById('priceCount');
+            if (cnt) cnt.textContent = `${list.length} item`;
+        }
+        function priceSetCat(c) { PRICE.cat = c; renderApp(); }
+        function priceSetSort(v) { PRICE.sort = v; renderApp(); }
+
+        function openPriceModal(id = null) {
+            const rec = id ? PRICE.items.find(i => i.id === id) : null;
+            if (id && !rec) return;
+            const cat = rec ? rec.category : 'Jasa';
+            openModal(`
+                <div class="p-6 sm:p-8 space-y-5 fade-in">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <h3 class="font-bold text-slate-900 text-lg">${rec ? 'Edit Harga' : 'Tambah Harga Baru'}</h3>
+                        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="savePriceForm(event, '${rec ? rec.id : ''}')" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Nama Barang / Jasa</label>
+                            <input type="text" id="prcName" value="${rec ? escapeHtml(rec.name) : ''}" required placeholder="mis: Install ulang Windows" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Kategori</label>
+                                <select id="prcCat" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none font-medium">
+                                    <option value="Jasa" ${cat === 'Jasa' ? 'selected' : ''}>Jasa Service</option>
+                                    <option value="Barang" ${cat === 'Barang' ? 'selected' : ''}>Barang</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Satuan</label>
+                                <input type="text" id="prcUnit" value="${rec ? escapeHtml(rec.unit) : ''}" placeholder="mis: unit, pcs, kali" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Harga (Rp)</label>
+                            <input type="number" id="prcPrice" min="0" value="${rec ? rec.price : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan (opsional)</label>
+                            <input type="text" id="prcNote" value="${rec ? escapeHtml(rec.note) : ''}" placeholder="mis: sudah termasuk driver" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                        </div>
+                        <button type="submit" class="w-full py-2.5 bg-[#0058c4] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">Simpan</button>
+                    </form>
+                </div>
+            `);
+        }
+
+        async function savePriceForm(e, editId) {
+            e.preventDefault();
+            const name = document.getElementById('prcName').value.trim();
+            const category = document.getElementById('prcCat').value;
+            const unit = document.getElementById('prcUnit').value.trim();
+            const price = Math.max(0, parseInt(document.getElementById('prcPrice').value) || 0);
+            const note = document.getElementById('prcNote').value.trim();
+            if (!name) { showToast('Nama wajib diisi!', 'error'); return; }
+            const dup = PRICE.items.some(i => i.id !== editId && i.category === category && i.name.toLowerCase() === name.toLowerCase());
+            if (dup) { showToast('Nama tersebut sudah ada di kategori yang sama!', 'error'); return; }
+
+            if (PRICE.mode === 'cloud' && supabaseClient) {
+                const payload = { name, category, unit, price, note };
+                const res = editId
+                    ? await supabaseClient.from('price_list').update(payload).eq('id', editId)
+                    : await supabaseClient.from('price_list').insert([payload]);
+                if (res.error) { showToast('Gagal menyimpan: ' + res.error.message, 'error'); return; }
+                await loadPriceList();
+            } else {
+                if (editId) {
+                    const idx = PRICE.items.findIndex(i => i.id === editId);
+                    if (idx !== -1) PRICE.items[idx] = { ...PRICE.items[idx], name, category, unit, price, note };
+                } else {
+                    PRICE.items.push({ id: 'L' + Date.now(), name, category, unit, price, note });
+                }
+                priceWriteLocal();
+                if (appData.activeTab === 'harga') renderApp();
+                pickRenderList();
+            }
+            closeModal();
+            showToast('Daftar harga berhasil disimpan!', 'success');
+        }
+
+        async function deletePriceItem(id) {
+            const rec = PRICE.items.find(i => i.id === id);
+            if (!rec) return;
+            if (!confirm(`Yakin ingin menghapus "${rec.name}" dari daftar harga?`)) return;
+            if (PRICE.mode === 'cloud' && supabaseClient) {
+                const res = await supabaseClient.from('price_list').delete().eq('id', id);
+                if (res.error) { showToast('Gagal menghapus: ' + res.error.message, 'error'); return; }
+                await loadPriceList();
+            } else {
+                PRICE.items = PRICE.items.filter(i => i.id !== id);
+                priceWriteLocal();
+                if (appData.activeTab === 'harga') renderApp();
+                pickRenderList();
+            }
+            showToast('Item harga dihapus.', 'info');
+        }
+
+        async function priceMigrateLocal() {
+            const local = priceReadLocal();
+            if (!local.length || !supabaseClient) return;
+            const rows = local.map(i => ({ name: i.name, category: i.category, unit: i.unit || '', price: i.price || 0, note: i.note || '' }));
+            const res = await supabaseClient.from('price_list').insert(rows);
+            if (res.error) { showToast('Gagal memindahkan: ' + res.error.message, 'error'); return; }
+            try { localStorage.removeItem(PRICE_LS_KEY); } catch (e) {}
+            await loadPriceList();
+            showToast(`${rows.length} data harga dipindahkan ke cloud.`, 'success');
+        }
+
+        // ---- Pemilih harga di modal Tambah/Edit Service ----
+        function togglePricePicker() {
+            const panel = document.getElementById('pricePickerPanel');
+            if (!panel) return;
+            const opening = panel.classList.contains('hidden');
+            panel.classList.toggle('hidden');
+            if (opening) {
+                pickRenderPanel();
+                if (!PRICE.loaded) loadPriceList();
+            }
+        }
+
+        function pickRenderPanel() {
+            const panel = document.getElementById('pricePickerPanel');
+            if (!panel) return;
+            const chip = (key, label) => `<button type="button" onclick="pickSetCat('${key}')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold ${PICK.cat === key ? 'bg-[#0058c4] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}">${label}</button>`;
+            panel.innerHTML = `
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="relative flex-grow min-w-[160px]">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]"></i>
+                        <input type="text" id="pickSearch" value="${escapeHtml(PICK.q)}" oninput="pickOnSearch(this.value)" onkeydown="if(event.key==='Enter')event.preventDefault()" placeholder="Cari daftar harga..." class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600">
+                    </div>
+                    ${chip('all', 'Semua')}${chip('Barang', 'Barang')}${chip('Jasa', 'Jasa')}
+                </div>
+                <div id="pickList" class="max-h-52 overflow-y-auto space-y-1.5 pr-1"></div>
+                <p class="text-[10px] text-slate-500">Klik item untuk menambahkan nominalnya ke Estimasi Biaya Service. Bisa dipilih lebih dari satu.</p>
+            `;
+            pickRenderList();
+        }
+
+        function pickFiltered() {
+            const kw = PICK.q.trim().toLowerCase();
+            return PRICE.items
+                .filter(i => (PICK.cat === 'all' || i.category === PICK.cat) && (!kw || [i.name, i.unit, i.note].some(v => String(v || '').toLowerCase().includes(kw))))
+                .sort((a, b) => a.name.localeCompare(b.name, 'id'));
+        }
+
+        function pickRenderList() {
+            const box = document.getElementById('pickList');
+            if (!box) return;
+            const list = pickFiltered();
+            if (list.length === 0) {
+                box.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">${PRICE.items.length === 0 ? 'Belum ada daftar harga. Tambahkan dulu di menu Harga.' : 'Tidak ada yang cocok.'}</div>`;
+                return;
+            }
+            box.innerHTML = list.map(i => `
+                <button type="button" onclick="pickPrice('${i.id}')" class="w-full flex items-center justify-between gap-3 px-3 py-2 bg-white hover:bg-blue-50 border border-slate-200 rounded-xl text-left transition-all">
+                    <span class="min-w-0">
+                        <span class="block text-xs font-bold text-slate-800 truncate">${escapeHtml(i.name)}</span>
+                        <span class="block text-[10px] text-slate-500">${escapeHtml(i.category === 'Jasa' ? 'Jasa' : 'Barang')}${i.unit ? ' &bull; ' + escapeHtml(i.unit) : ''}</span>
+                    </span>
+                    <span class="flex items-center gap-2 flex-shrink-0">
+                        <span class="font-mono font-bold text-xs text-[#0058c4]">${formatRupiah(i.price)}</span>
+                        <i class="fa-solid fa-circle-plus text-emerald-500"></i>
+                    </span>
+                </button>
+            `).join('');
+        }
+
+        function pickOnSearch(v) { PICK.q = v; pickRenderList(); }
+        function pickSetCat(c) { PICK.cat = c; pickRenderPanel(); }
+
+        function pickPrice(id) {
+            const item = PRICE.items.find(i => i.id === id);
+            const input = document.getElementById('svcPrice');
+            if (!item || !input) return;
+            input.value = (parseInt(input.value) || 0) + item.price;
+            PICK.picked.push({ uid: Date.now() + Math.random(), name: item.name, price: item.price });
+            pickRenderChips();
+            updProfit('svcPrice', 'svcCost', 'svcProfitInfo');
+        }
+
+        function pickRemove(uid) {
+            const idx = PICK.picked.findIndex(p => p.uid === uid);
+            const input = document.getElementById('svcPrice');
+            if (idx === -1 || !input) return;
+            input.value = Math.max(0, (parseInt(input.value) || 0) - PICK.picked[idx].price);
+            PICK.picked.splice(idx, 1);
+            pickRenderChips();
+            updProfit('svcPrice', 'svcCost', 'svcProfitInfo');
+        }
+
+        function pickRenderChips() {
+            const box = document.getElementById('pricePickedChips');
+            if (!box) return;
+            if (PICK.picked.length === 0) { box.innerHTML = ''; return; }
+            const total = PICK.picked.reduce((t, p) => t + p.price, 0);
+            box.innerHTML = `
+                <div class="p-3 rounded-xl bg-blue-50 border border-blue-200 space-y-2">
+                    <div class="flex items-center justify-between text-[11px]">
+                        <span class="font-bold text-blue-800">Dipilih dari Daftar Harga</span>
+                        <span class="font-mono font-extrabold text-blue-800">${formatRupiah(total)}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                        ${PICK.picked.map(p => `<span class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-white border border-blue-200 text-[11px] font-semibold text-slate-700">${escapeHtml(p.name)} <span class="font-mono text-[#0058c4]">+${formatRupiah(p.price)}</span><button type="button" onclick="pickRemove(${p.uid})" class="w-4 h-4 rounded-full text-rose-500 hover:bg-rose-100 flex items-center justify-center" title="Batalkan"><i class="fa-solid fa-xmark text-[9px]"></i></button></span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
         window.addEventListener('DOMContentLoaded', async () => {
             setTimeout(()=>{if(typeof posAutoUSB==='function')posAutoUSB().then(()=>posAutoSerial()).then(()=>posStationStart());},1200);
             renderApp();
+            loadPriceList();
             if (supabaseClient) {
                 await loadSupabaseData();
                 initRealtimeSubscription();
