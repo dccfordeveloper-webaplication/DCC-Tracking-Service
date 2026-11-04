@@ -748,11 +748,15 @@
 
         function renderOrderRows(ordersList) {
             if (ordersList.length === 0) return `<tr><td colspan="9" class="p-6 text-center text-slate-400">Belum ada data pemesanan.</td></tr>`;
-            return ordersList.map(item => `
-                <tr class="hover:bg-slate-50 transition-colors">
+            // Transaksi yang sudah Selesai ditaruh paling bawah (urutan lainnya tetap)
+            const sortedOrders = [...ordersList].sort((a, b) => (a.progress === 4 ? 1 : 0) - (b.progress === 4 ? 1 : 0));
+            return sortedOrders.map(item => {
+                const done = item.progress === 4;
+                return `
+                <tr class="${done ? 'bg-emerald-50 hover:bg-emerald-100/70' : 'hover:bg-slate-50'} transition-colors">
                     <td class="p-3.5 font-mono font-bold text-blue-700 whitespace-nowrap">
                         <button onclick="viewOrderDetail('${item.id}')" class="hover:underline flex items-center gap-1">
-                            <i class="fa-solid fa-receipt text-slate-400"></i> ${item.id}
+                            <i class="fa-solid ${done ? 'fa-circle-check text-emerald-500' : 'fa-receipt text-slate-400'}"></i> ${item.id}
                         </button>
                     </td>
                     <td class="p-3.5 text-slate-500 whitespace-nowrap">${item.date}</td>
@@ -761,7 +765,7 @@
                     <td class="p-3.5 text-slate-600 font-mono whitespace-nowrap">${item.phone || '-'}</td>
                     <td class="p-3.5 text-slate-600 font-medium">${item.orderType}</td>
                     <td class="p-3.5 whitespace-nowrap">
-                        <select onchange="updateOrderStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
+                        <select onchange="updateOrderStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold ${done ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-slate-100 border-slate-200 text-slate-700'} border focus:outline-none">
                             ${ORDER_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
                         </select>
                     </td>
@@ -783,7 +787,8 @@
                         </div>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         function filterOrderTable() {
@@ -833,11 +838,15 @@
 
         function renderServiceRows(servicesList) {
             if (servicesList.length === 0) return `<tr><td colspan="9" class="p-6 text-center text-slate-400">Belum ada data service.</td></tr>`;
-            return servicesList.map(item => `
-                <tr class="hover:bg-slate-50 transition-colors">
+            // Transaksi yang sudah Selesai ditaruh paling bawah (urutan lainnya tetap)
+            const sortedServices = [...servicesList].sort((a, b) => (a.progress === 3 ? 1 : 0) - (b.progress === 3 ? 1 : 0));
+            return sortedServices.map(item => {
+                const done = item.progress === 3;
+                return `
+                <tr class="${done ? 'bg-emerald-50 hover:bg-emerald-100/70' : 'hover:bg-slate-50'} transition-colors">
                     <td class="p-3.5 font-mono font-bold text-amber-600 whitespace-nowrap">
                         <button onclick="viewServiceDetail('${item.id}')" class="hover:underline flex items-center gap-1">
-                            <i class="fa-solid fa-screwdriver-wrench text-slate-400"></i> ${item.id}
+                            <i class="fa-solid ${done ? 'fa-circle-check text-emerald-500' : 'fa-screwdriver-wrench text-slate-400'}"></i> ${item.id}
                         </button>
                     </td>
                     <td class="p-3.5 text-slate-500 whitespace-nowrap">${item.date}</td>
@@ -848,7 +857,7 @@
                         <span class="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px]">${item.items ? item.items.length : 0} Item</span>
                     </td>
                     <td class="p-3.5 whitespace-nowrap">
-                        <select onchange="updateServiceStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none">
+                        <select onchange="updateServiceStatus('${item.id}', this.value)" class="px-2 py-1 rounded-lg text-xs font-bold ${done ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-slate-100 border-slate-200 text-slate-700'} border focus:outline-none">
                             ${SERVICE_STAGES.map((stg, idx) => `<option value="${idx}" ${item.progress === idx ? 'selected' : ''}>${stg.title}</option>`).join('')}
                         </select>
                     </td>
@@ -870,7 +879,8 @@
                         </div>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         function filterServiceTable() {
@@ -1748,6 +1758,7 @@
             } else {
                 const idx = appData.orders.findIndex(o => o.id === id);
                 if (idx !== -1) appData.orders[idx].progress = parseInt(newStatusIdx);
+                if (document.getElementById('orderTableBody')) filterOrderTable();
             }
             showToast(`Status ${id} diperbarui!`, 'success');
         }
@@ -1942,6 +1953,7 @@
             } else {
                 const idx = appData.services.findIndex(s => s.id === id);
                 if (idx !== -1) appData.services[idx].progress = parseInt(newStatusIdx);
+                if (document.getElementById('serviceTableBody')) filterServiceTable();
             }
             showToast(`Status ${id} diperbarui!`, 'success');
         }
