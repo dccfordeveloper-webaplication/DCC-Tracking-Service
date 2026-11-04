@@ -100,6 +100,34 @@
             scrollbar-color: #0058c4 #f1f5f9;
         }
 
+        /* ===== AUTO FIT: desktop & mobile ===== */
+        html { -webkit-text-size-adjust: 100%; }
+        body { overflow-wrap: break-word; }
+        /* tinggi halaman mengikuti area layar yang benar-benar terlihat (bukan 100vh) */
+        html body .min-h-screen { min-height: 100vh; min-height: 100dvh; }
+        .table-scroll { max-height: var(--scroll-h, 68vh); max-height: var(--scroll-h, 68dvh); }
+        @supports (height: 1dvh) {
+            [class*="max-h-[92vh]"] { max-height: 92dvh; }
+            [class*="max-h-[65vh]"] { max-height: 65dvh; }
+            [class*="max-h-[60vh]"] { max-height: 60dvh; }
+            [class*="max-h-[44vh]"] { max-height: 44dvh; }
+            [class*="max-h-[42vh]"] { max-height: 42dvh; }
+        }
+        /* tabel: desktop memenuhi lebar, HP tetap selebar minimumnya dan digeser ke samping */
+        table.w-full { table-layout: auto; }
+        table.w-full th, table.w-full td { overflow-wrap: break-word; word-break: normal; }
+        table.w-full thead th { white-space: nowrap; }
+        .overflow-x-auto, .table-scroll { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+        #app img, #modalContainer img { max-width: 100%; }
+        /* monitor lebar: area konten ikut melebar, huruf sedikit membesar */
+        @media (min-width: 1536px) { .max-w-6xl { max-width: 84rem; } }
+        @media (min-width: 1920px) { html { font-size: 17px; } }
+        @media (min-width: 2560px) { html { font-size: 19px; } }
+        /* HP */
+        @media (max-width: 479px) {
+            html { font-size: 15px; }
+            #toastContainer { left: .75rem; right: .75rem; max-width: none; }
+        }
         /* ===== Cetak / Print: A4 dengan margin tetap, otomatis multi-halaman ===== */
         #printHost { display: none; }
         .no-print { }
@@ -1483,6 +1511,7 @@
             sizer.style.height = `${paper.offsetHeight * scale}px`;
         }
         window.addEventListener('resize', fitDocPreview);
+        window.addEventListener('orientationchange', () => setTimeout(fitDocPreview, 200));
 
         // Tunggu font & gambar siap supaya hasil PDF tidak bergeser
         async function waitForDocAssets(element) {
