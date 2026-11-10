@@ -2075,7 +2075,7 @@
         function viewServiceDetail(id) {
             const item = appData.services.find(s => s.id === id);
             if (!item) return;
-            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3><p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-user-check mr-1"></i>Penerima: <b class="text-slate-700">${item.receiver ? escapeHtml(item.receiver) : '-'}</b></p></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item, true)}</div>`);
+            openModal(`<div class="p-6 space-y-4 fade-in"><div class="flex justify-between items-center border-b border-slate-100 pb-3"><div><span class="text-xs font-mono font-bold text-amber-600">${item.id}</span><h3 class="font-bold text-slate-800 text-lg">${item.customerName} &bull; ${item.room}</h3><p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-user-check mr-1"></i>Penerima: <b class="text-slate-700">${item.receiver ? escapeHtml(item.receiver) : '-'}</b></p></div><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button></div>${renderCustomerServiceDetails(item, true)}<button onclick="posDiagPreview('${item.id}')" class="w-full py-3 rounded-2xl bg-[#003b87] hover:bg-[#002f6c] text-white font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95"><i class="fa-solid fa-print"></i> Cetak Diagnosa</button></div>`);
         }
 
         // ==========================================
@@ -2902,7 +2902,7 @@ do $$ begin alter publication supabase_realtime add table public.price_list; exc
 // ===================================================================
 const FIN_URL='https://xmfmlmognktzhkhphjub.supabase.co', FIN_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtZm1sbW9nbmt0emhraHBoanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NzYzMjIsImV4cCI6MjEwODI1MjMyMn0.QT3wGcLC5Z-8trJVeCfWfDZJs5PCEe3FQxVd_xqH_uY';
 let finClient=null; try{finClient=window.supabase.createClient(FIN_URL,FIN_KEY);}catch(e){console.error(e);}
-const POS={s:{account:'',cashKas:'',cashlessKas:'',store:'DARUSSALAM COMPUTER CENTER',addr:'Ds. Gontor, Kec. Mlarak, Kab. Ponorogo, Prov. Jawa Timur, 63472',phone:'085179952026',footer:'Your Best Choice to Face Your Global World',cashier:'DCC servis',cols:32,baud:9600,showLogo:true},
+const POS={s:{account:'',cashKas:'',cashlessKas:'',store:'DARUSSALAM COMPUTER CENTER',addr:'Ds. Gontor, Kec. Mlarak, Kab. Ponorogo, Prov. Jawa Timur, 63472',phone:'085179952026',footer:'Your Best Choice to Face Your Global World',cashier:'',cols:32,baud:9600,showLogo:true},
  accounts:[],opt:{},items:[],moves:[],cart:[],discount:0,q:'',view:'stock',paid:new Set(),loaded:false,err:'',last:null,printer:null,rt:false};
 try{Object.assign(POS.s,JSON.parse(localStorage.getItem('dcc_pos_settings')||'{}'));}catch(e){}
 // Relay cetak v2: otomatis aktif di semua perangkat (tanpa perlu centang manual)
@@ -3053,6 +3053,7 @@ function posVoid(){if(POS.cart.length&&confirm('Batalkan transaksi ini?'))posNew
 
 // ---------- Pembayaran ----------
 function posPay(){if(!POS.cart.length){alert('Keranjang kosong.');return;}const s=POS.s;
+ if(!String(s.cashier||'').trim()){alert('Isi Nama kasir (User) di Pengaturan terlebih dahulu.');return posSettings();}
  if(!s.account||!s.cashKas){alert('Atur akun dan kas di Pengaturan terlebih dahulu.');return posSettings();}
  const t=posSub()-Math.min(POS.discount,posSub());
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">Pembayaran</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
@@ -3065,8 +3066,14 @@ function posPay(){if(!POS.cart.length){alert('Keranjang kosong.');return;}const 
  setTimeout(()=>$p('posPaid')&&$p('posPaid').focus(),50);}
 function posMethod(m){$p('posMethod').value=m;$p('posCashBox').classList.toggle('hidden',m!=='cash');$p('pmCash').className=BTN+(m==='cash'?'bg-[#003b87] text-white':'bg-slate-100 text-slate-700');$p('pmCard').className=BTN+(m!=='cash'?'bg-[#003b87] text-white':'bg-slate-100 text-slate-700');}
 function posCalc(t){const p=parseFloat($p('posPaid').value)||0;const c=$p('posChange');c.innerText=p>=t?posRp(p-t):'Kurang '+posRp(t-p);c.className='font-mono '+(p>=t?'text-emerald-600':'text-rose-500');}
+// Insert ke tabel transactions; bila kolom recipient belum ada di database, simpan tanpa kolom itu (transaksi kasir tidak boleh gagal)
+async function posInsTx(row){let r=await finClient.from('transactions').insert([row]).select();
+ if(r.error&&/recipient/i.test(r.error.message||'')){const {recipient,...rest}=row;r=await finClient.from('transactions').insert([rest]).select();
+  if(!r.error)showToast('Kolom recipient belum ada di tabel transactions, nama kasir belum tercatat di Pemasukan. Jalankan migrasi_danaku_penerima.sql di Supabase.','error');}
+ return r;}
 async function posCheckout(){
  const s=POS.s,method=$p('posMethod').value,sub=posSub(),disc=Math.min(POS.discount,sub),total=sub-disc;
+ const who=String(s.cashier||'').trim();if(!who){alert('Nama kasir (User) wajib diisi di Pengaturan Kasir.');posClose();return posSettings();}
  const paid=method==='cash'?(parseFloat($p('posPaid').value)||0):total;
  if(paid<total){alert('Uang diterima kurang.');return;}
  const kas=method==='cash'?s.cashKas:(s.cashlessKas||s.cashKas);
@@ -3079,10 +3086,10 @@ async function posCheckout(){
  const undo=async()=>{if(costTx)await finClient.from('transactions').delete().eq('id',costTx);if(txId){await finClient.from('inventory_moves').delete().eq('transaction_id',txId);await finClient.from('transactions').delete().eq('id',txId);}};
  try{
   const desc=('Kasir: '+POS.cart.map(c=>(c.ref?c.name+' #'+c.ref:c.name)+' x'+c.qty).join(', ')).slice(0,200);
-  const a=await finClient.from('transactions').insert([{account:s.account,type:'in',date,description:desc,qty:1,category:'Penjualan',cash_type:kas,amount:total}]).select();
+  const a=await posInsTx({account:s.account,type:'in',date,description:desc,qty:1,category:'Penjualan',cash_type:kas,amount:total,recipient:who});
   if(a.error||!a.data||!a.data.length)throw new Error(a.error?a.error.message:'database tidak merespons');txId=a.data[0].id;
   if(refCost>0){const refs=POS.cart.filter(c=>c.ref&&c.cost>0).map(c=>c.ref).join(', ');
-   const e=await finClient.from('transactions').insert([{account:s.account,type:'out',date,description:('Beban pokok: '+refs).slice(0,200),qty:1,category:'Beban Pokok Penjualan',cash_type:kas,amount:refCost}]).select();
+   const e=await posInsTx({account:s.account,type:'out',date,description:('Beban pokok: '+refs).slice(0,200),qty:1,category:'Beban Pokok Penjualan',cash_type:kas,amount:refCost,recipient:who});
    if(e.error||!e.data||!e.data.length)throw new Error(e.error?e.error.message:'database tidak merespons (beban pokok)');costTx=e.data[0].id;}
   const f=sub>0?total/sub:1;
   if(stockLines.length){const b=await finClient.from('inventory_moves').insert(stockLines.map(c=>({account:s.account,item_id:c.id,date,type:'out',qty:c.qty,unit_cost:0,unit_price:c.price*f,note:'Kasir',transaction_id:txId}))).select();
@@ -3098,8 +3105,8 @@ async function posCheckout(){
 // ---------- Struk ----------
 const POS_CFG_KEYS=['store','addr','phone','footer','showLogo'];
 function posCfg(sale,k){return (sale&&sale.cfg&&sale.cfg[k]!=null)?sale.cfg[k]:POS.s[k];}
-function posReceiptNo(s){return String(s.at.getFullYear()).slice(2)+'-200-'+String(s.id).padStart(6,'0');}
-function posReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String(n).padStart(2,'0');
+function posReceiptNo(s){if(s.kind==='diag')return s.id;return String(s.at.getFullYear()).slice(2)+'-200-'+String(s.id).padStart(6,'0');}
+function posReceipt(sale){if(sale.kind==='diag')return posDiagReceipt(sale);const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String(n).padStart(2,'0');
  const wrap=(t,w)=>{w=w||c;const o=[];let l='';String(t).split(' ').forEach(x=>{while(x.length>w){if(l){o.push(l);l='';}o.push(x.slice(0,w));x=x.slice(w);}if((l+' '+x).trim().length>w){o.push(l);l=x;}else l=(l+' '+x).trim();});if(l)o.push(l);return o;};
  const ctr=t=>' '.repeat(Math.max(0,Math.floor((c-t.length)/2)))+t,lr=(l,r)=>{l=String(l);r=String(r);return l.length+r.length+1>c?l.slice(0,Math.max(0,c-r.length-1))+' '+r:l+' '.repeat(c-l.length-r.length)+r;},R=n=>'Rp'+Math.round(n).toLocaleString('id-ID');
  const add=(t,b)=>L.push({t,b:!!b}),line=ch=>add(ch.repeat(c)),d=sale.at;
@@ -3125,16 +3132,47 @@ function posReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String
  add(lr(sale.method==='cash'?'Tunai':'Non-tunai',R(sale.paid)));
  if(sale.change>0)add(lr('Kembali',R(sale.change)),1);
  add('');add(ctr('TERIMA KASIH'),1);wrap(posCfg(sale,'footer')).forEach(x=>add(ctr(x)));return L;}
+// ---------- Cetak Diagnosa Service (jalur cetak sama dengan struk: browser, printer lokal, atau relay ke PC printer) ----------
+const POS_TRACK_URL='tracking-service-dcc.vercel.app';
+function posDiagSale(id){const r=appData.services.find(x=>x.id===id);if(!r)return null;const st=SERVICE_STAGES[r.progress]||SERVICE_STAGES[0];
+ return {kind:'diag',id:r.id,at:new Date(),date:r.date||'',customerName:r.customerName||'',room:r.room||'',phone:r.phone||'',receiver:r.receiver||'',
+  items:(r.items||[]).map(i=>({name:i.name||'',issue:i.issue||''})),kelengkapan:r.kelengkapan||'',notes:r.notes||'',estimatedPrice:+r.estimatedPrice||0,status:st.title,printedBy:(POS.s.cashier||'').trim()};}
+function posDiagReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>String(n).padStart(2,'0');
+ const wrap=(t,w)=>{w=w||c;const o=[];let l='';String(t).split(' ').forEach(x=>{while(x.length>w){if(l){o.push(l);l='';}o.push(x.slice(0,w));x=x.slice(w);}if((l+' '+x).trim().length>w){o.push(l);l=x;}else l=(l+' '+x).trim();});if(l)o.push(l);return o;};
+ const ctr=t=>' '.repeat(Math.max(0,Math.floor((c-t.length)/2)))+t,lr=(l,r)=>{l=String(l);r=String(r);return l.length+r.length+1>c?l.slice(0,Math.max(0,c-r.length-1))+' '+r:l+' '.repeat(c-l.length-r.length)+r;},R=n=>'Rp'+Math.round(n).toLocaleString('id-ID');
+ const add=(t,b)=>L.push({t,b:!!b}),line=ch=>add(ch.repeat(c)),d=sale.at;
+ const fd=x=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(x||''));return m?m[3]+'/'+m[2]+'/'+m[1]:String(x||'-');};
+ const kv=(k,v)=>wrap(v||'-',Math.max(8,c-k.length-2)).forEach((x,i)=>add((i?' '.repeat(k.length+2):k+': ')+x));
+ wrap(posCfg(sale,'store')).forEach(x=>add(ctr(x),1));wrap(posCfg(sale,'addr')).forEach(x=>add(ctr(x)));if(posCfg(sale,'phone'))add(ctr('Telp. '+posCfg(sale,'phone')));
+ line('=');add(ctr('DIAGNOSA SERVICE'),1);line('=');
+ if(sale.reprint){add(ctr('*** CETAK ULANG ***'),1);add(ctr('(SALINAN)'));line('-');}
+ add(lr('Kode',sale.id),1);
+ add(lr('Tgl Masuk',fd(sale.date)));
+ add(lr('Dicetak',p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear()+' '+p2(d.getHours())+':'+p2(d.getMinutes())));
+ add(lr('Status',sale.status||'-'));
+ line('-');
+ kv('Pelanggan',sale.customerName);kv('Kamar/Bagian',sale.room);if(sale.phone)kv('No. HP',sale.phone);kv('Penerima',sale.receiver);
+ line('=');add('BARANG & KENDALA',1);line('-');
+ (sale.items||[]).forEach((i,k)=>{wrap((k+1)+'. '+(i.name||'-')).forEach(x=>add(x,1));wrap('Kendala: '+(i.issue||'-'),c-3).forEach(x=>add('   '+x));if(k<sale.items.length-1)add('');});
+ if(sale.kelengkapan){line('-');wrap('Kelengkapan: '+sale.kelengkapan).forEach(x=>add(x));}
+ if(sale.notes){line('-');wrap('Catatan: '+sale.notes).forEach(x=>add(x));}
+ line('=');add(lr('ESTIMASI BIAYA',R(sale.estimatedPrice)),1);line('=');
+ add(ctr('Pantau status service:'));add(ctr(POS_TRACK_URL));add(ctr('Kode: '+sale.id),1);
+ add('');const dots=Math.max(4,Math.floor((c-3)/2)-2);add(lr('Penerima','Pelanggan'));add('');add('');add(lr('('+'.'.repeat(dots)+')','('+'.'.repeat(dots)+')'));
+ add('');add(ctr('TERIMA KASIH'),1);wrap(posCfg(sale,'footer')).forEach(x=>add(ctr(x)));
+ if(sale.printedBy)add(ctr('Dicetak oleh: '+sale.printedBy));
+ return L;}
+function posDiagPreview(id){const s=posDiagSale(id);if(!s){alert('Data service tidak ditemukan.');return;}posLast(false,s);}
 function posReceiptHtml(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
  const logo=posCfg(sale,'showLogo')!==false?`<img src="${POS_LOGO}" alt="" style="display:block;margin:0 auto 8px;width:24mm;height:auto">`:'';
  return `<div id="posReceiptPrint" class="pos-rcpt" style="--cols:${c};box-sizing:content-box;background:#fff;color:#000;width:${c}ch;padding:10px 12px;font:12px/1.35 'Courier New',Courier,monospace">${logo}<pre style="margin:0;font:inherit;white-space:pre">${L.map(x=>(x.b?'<b>':'')+pe(x.t)+(x.b?'</b>':'')).join('\n')}</pre></div>`;}
 function posLast(auto,sale){const s=sale||POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}POS.cur=s;
- posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${s.reprint?'<i class="fa-solid fa-print text-[#003b87]"></i> Cetak Ulang Struk':auto?'<i class="fa-solid fa-circle-check text-emerald-500"></i> Transaksi Tersimpan':'Struk Terakhir'}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
+ posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${s.kind==='diag'?'<i class="fa-solid fa-stethoscope text-[#003b87]"></i> Cetak Diagnosa Service':s.reprint?'<i class="fa-solid fa-print text-[#003b87]"></i> Cetak Ulang Struk':auto?'<i class="fa-solid fa-circle-check text-emerald-500"></i> Transaksi Tersimpan':'Struk Terakhir'}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
   <div class="bg-slate-100 rounded-2xl p-3 flex justify-center overflow-x-auto max-h-[60vh] overflow-y-auto">${posReceiptHtml(s)}</div>
   <div class="grid grid-cols-2 gap-2"><button onclick="posPrintBrowser()" class="${BTN}bg-[#003b87] text-white"><i class="fa-solid fa-print"></i> Cetak (Browser)</button>
   <button onclick="posPrintDirect()" class="${BTN}bg-emerald-600 text-white"><i class="fa-solid fa-plug"></i> Cetak Langsung</button></div>
   <div class="text-[11px] text-center font-semibold ${POS.printer?'text-emerald-600':'text-amber-600'}">${POS.printer?'Printer terhubung di perangkat ini.':'Perangkat ini tanpa printer: Cetak Langsung dikirim ke PC printer.'}</div>
-  ${s.reprint?`<button onclick="posClose()" class="w-full ${BTN}bg-slate-100 text-slate-700">Tutup</button>`:`<button onclick="posClose();posNew()" class="w-full ${BTN}bg-slate-100 text-slate-700">Selesai / Transaksi Baru</button>`}`);
+  ${(s.reprint||s.kind==='diag')?`<button onclick="posClose()" class="w-full ${BTN}bg-slate-100 text-slate-700">Tutup</button>`:`<button onclick="posClose();posNew()" class="w-full ${BTN}bg-slate-100 text-slate-700">Selesai / Transaksi Baru</button>`}`);
  if(auto&&(POS.printer||POS.s.remote!==false))posPrintDirect(s);}
 function posPrintDoc(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
  const logo=posCfg(sale,'showLogo')!==false?`<img src="${POS_LOGO}" alt="">`:'';
@@ -3268,9 +3306,9 @@ async function posSendRemote(sale){
  if(!finClient){alert('Koneksi database tidak tersedia.');return;}
  const r=await finClient.from('print_jobs').insert([{account:POS.s.account,payload:posSalePayload(sale),requested_by:posWho()}]).select();
  if(r.error||!r.data||!r.data.length){alert('Gagal mengirim ke printer kasir: '+(r.error?r.error.message:'database tidak merespons')+'\n\nPastikan migrasi_print_jobs.sql sudah dijalankan di Supabase Bendahara.');return;}
- const id=r.data[0].id;showToast('Struk dikirim ke PC printer...','info');posQueueLoad();
+ const id=r.data[0].id;showToast((sale.kind==='diag'?'Diagnosa':'Struk')+' dikirim ke PC printer...','info');posQueueLoad();
  setTimeout(async()=>{try{const c=await finClient.from('print_jobs').select('status,error').eq('id',id).single();const st=c.data&&c.data.status;
-  if(st==='done')showToast('Struk berhasil dicetak.','success');
+  if(st==='done')showToast((sale.kind==='diag'?'Diagnosa':'Struk')+' berhasil dicetak.','success');
   else if(st==='error')alert('Printer kasir gagal mencetak: '+c.data.error);
   else showToast('PC printer belum merespons. Struk tetap tersimpan di antrian Kasir dan akan dicetak begitu PC printer siap.','error');
   posQueueLoad();}catch(e){}},8000);}
@@ -3286,7 +3324,7 @@ async function posStationRun(){
    try{const sale={...j.payload,at:new Date(j.payload.at)};
     await POS.printer.write(await posBytes(posReceipt(sale),sale));
     await finClient.from('print_jobs').update({status:'done',printed_at:new Date().toISOString()}).eq('id',j.id);
-    showToast('Struk dari '+(j.requested_by||'perangkat lain')+' dicetak.','success');
+    showToast((j.payload&&j.payload.kind==='diag'?'Diagnosa':'Struk')+' dari '+(j.requested_by||'perangkat lain')+' dicetak.','success');
    }catch(e){await finClient.from('print_jobs').update({status:'error',error:String(e.message).slice(0,200)}).eq('id',j.id);}
   }
  }catch(e){console.error(e);}
@@ -3329,7 +3367,7 @@ function posQueueRender(){const h=$p('posQueue');if(!h)return;const P=POS.pj,p2=
   return `<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-xs">
    <div class="min-w-[120px]"><div class="font-mono font-bold text-[#003b87]">${pe(no)}${sl.reprint?' <span class="text-[9px] text-amber-600">SALINAN</span>':''}</div><div class="text-[10px] text-slate-400">${p2(d.getDate())}/${p2(d.getMonth()+1)} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}</div></div>
    <div class="flex-1 min-w-[140px] text-slate-600"><div class="truncate">${pe((sl.items||[]).slice(0,2).map(i=>i.name).join(', '))}${(sl.items||[]).length>2?' +'+((sl.items||[]).length-2):''}</div><div class="text-[10px] text-slate-400">Dari: ${pe(j.requested_by||'-')}${j.station?' &bull; Dicetak: '+pe(j.station):''}</div>${j.status==='error'&&j.error?`<div class="text-[10px] text-rose-500">${pe(j.error)}</div>`:''}</div>
-   <div class="font-mono font-bold">${posRp(sl.total)}</div>
+   <div class="font-mono font-bold">${sl.kind==='diag'?'<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-bold">DIAGNOSA</span>':posRp(sl.total)}</div>
    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${st[1]}">${st[0]}</span>
    <div class="flex gap-1"><button onclick="posQueueView(${j.id})" class="${BTN}bg-slate-100 text-slate-700 hover:bg-slate-200" title="Lihat struk"><i class="fa-solid fa-eye"></i></button>
    <button ${can?'':'disabled'} onclick="posQueuePrint(${j.id})" class="${BTN}bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40" title="Cetak langsung"><i class="fa-solid fa-plug"></i> Cetak</button>
@@ -3361,12 +3399,14 @@ function posSettings(){const s=POS.s,o=POS.opt[s.account]||{in:{cashTypes:[]},ou
   <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Akun Bendahara</label><select id="stAcc" onchange="posSetAccount(this.value);posSettings()" class="${INP}">${POS.accounts.map(a=>`<option ${a===s.account?'selected':''}>${pe(a)}</option>`).join('')}</select></div>
   <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kas untuk pembayaran Tunai</label>${sel('stCash',s.cashKas,kas)}</div>
   <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kas untuk Non-Tunai</label>${sel('stCashless',s.cashlessKas,kas,1)}</div>
-  ${f('stStore','Nama toko',s.store)}${f('stAddr','Alamat',s.addr)}${f('stPhone','Telepon',s.phone)}${f('stFooter','Teks bawah struk',s.footer)}${f('stCashier','Nama kasir (User)',s.cashier)}
+  ${f('stStore','Nama toko',s.store)}${f('stAddr','Alamat',s.addr)}${f('stPhone','Telepon',s.phone)}${f('stFooter','Teks bawah struk',s.footer)}${f('stCashier','Nama kasir (User) <span class="text-rose-500">* wajib diisi</span>',s.cashier,'required placeholder="Nama Anda, mis: Rafli" autocomplete="off"')}<div class="text-[10px] text-slate-400 -mt-1.5">Nama ini tercetak di struk dan tercatat sebagai penerima pada tabel Pemasukan Bendahara.</div>
   <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 py-1"><input type="checkbox" id="stLogo" ${s.showLogo!==false?'checked':''} class="w-4 h-4"> Cetak logo di bagian atas struk</label>
   <div class="grid grid-cols-2 gap-2">${f('stCols','Lebar karakter/baris',s.cols,'type="number" min="20" max="48"')}${f('stBaud','Baud (USB/Serial)',s.baud,'type="number"')}</div></div>
   <button onclick="posSaveSettings()" class="w-full py-3 rounded-2xl bg-[#003b87] text-white font-bold text-sm">Simpan Pengaturan</button>`);}
 function posSetAccount(a){POS.s.account=a;POS.cart=[];POS.s.cashKas='';POS.s.cashlessKas='';posSave();}
-function posSaveSettings(){const s=POS.s,g=id=>$p(id).value;Object.assign(s,{account:g('stAcc'),cashKas:g('stCash'),cashlessKas:g('stCashless'),store:g('stStore'),addr:g('stAddr'),phone:g('stPhone'),footer:g('stFooter'),cashier:g('stCashier'),cols:+g('stCols')||32,baud:+g('stBaud')||9600,showLogo:$p('stLogo').checked});posSave();posClose();renderApp();}
+function posSaveSettings(){const s=POS.s,g=id=>$p(id).value;
+ if(!g('stCashier').trim()){alert('Nama kasir (User) wajib diisi.\n\nNama ini dicatat di struk dan di tabel Pemasukan.');$p('stCashier').focus();return;}
+ Object.assign(s,{account:g('stAcc'),cashKas:g('stCash'),cashlessKas:g('stCashless'),store:g('stStore'),addr:g('stAddr'),phone:g('stPhone'),footer:g('stFooter'),cashier:g('stCashier').trim(),cols:+g('stCols')||32,baud:+g('stBaud')||9600,showLogo:$p('stLogo').checked});posSave();posClose();renderApp();}
 
 // ---------- Riwayat Transaksi Kasir ----------
 POS.hist={rows:[],loaded:false,loading:false,err:'',sel:new Set(),f:{q:'',from:'',to:'',method:'',type:''}};
@@ -3481,10 +3521,10 @@ function posStokForm(mode,id){const it=POS.items.find(i=>i.id===id)||{},o=POS.op
  if(mode==='buy')body=`<div class="grid grid-cols-2 gap-2">${f('sfQty','Jumlah','','type="number" min="0" step="any"')}${f('sfCost','Harga beli/satuan',Math.round((posWalk()[id]||{avg:0}).avg)||'','type="number" min="0"')}</div>${kas}`;
  if(mode==='adj')body=f('sfQty','Selisih jumlah (minus = berkurang)','','type="number" step="any"')+f('sfNote','Catatan (wajib)','');
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${pe(title)}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div><div class="space-y-2.5">${body}</div><button onclick="posStokSave('${mode}',${id||0})" class="w-full py-3 rounded-2xl bg-[#003b87] text-white font-bold text-sm">Simpan</button>`);}
-async function posFinTx(row){const r=await finClient.from('transactions').insert([row]).select();if(r.error||!r.data||!r.data.length)throw new Error(r.error?r.error.message:'database tidak merespons');return r.data[0].id;}
+async function posFinTx(row){const r=await posInsTx(row);if(r.error||!r.data||!r.data.length)throw new Error(r.error?r.error.message:'database tidak merespons');return r.data[0].id;}
 async function posFinMove(row){const r=await finClient.from('inventory_moves').insert([row]).select();if(r.error)throw new Error(r.error.message);}
 async function posBuy(itemId,name,qty,cost,kas){const d=posToday(),a=POS.s.account;let tx=null;
- try{tx=await posFinTx({account:a,type:'out',date:d,description:'Beli stok: '+name,qty,category:'Belanja Stok',cash_type:kas,amount:cost});
+ try{tx=await posFinTx({account:a,type:'out',date:d,description:'Beli stok: '+name,qty,category:'Belanja Stok',cash_type:kas,amount:cost,recipient:(POS.s.cashier||'').trim()||undefined});
   await posFinMove({account:a,item_id:itemId,date:d,type:'in',qty,unit_cost:cost,unit_price:0,note:'',transaction_id:tx});}
  catch(e){if(tx)await finClient.from('transactions').delete().eq('id',tx);throw e;}}
 async function posStokSave(mode,id){const g=i=>$p(i)?$p(i).value:'',a=POS.s.account;
@@ -3493,7 +3533,9 @@ async function posStokSave(mode,id){const g=i=>$p(i)?$p(i).value:'',a=POS.s.acco
    const row={name,unit:g('sfUnit').trim()||'pcs',sell_price:parseFloat(g('sfPrice'))||0,barcode:g('sfBar').trim()||null};
    if(mode==='edit'){const r=await finClient.from('inventory_items').update(row).eq('id',id);if(r.error)throw new Error(r.error.message);}
    else{if(POS.items.some(i=>i.account===a&&i.name.toLowerCase()===name.toLowerCase())){alert('Nama barang sudah ada.');return;}
-    const r=await finClient.from('inventory_items').insert([{...row,account:a}]).select();if(r.error||!r.data||!r.data.length)throw new Error(r.error?r.error.message:'database tidak merespons');
+    const ed=(POS.s.cashier||'').trim()||undefined;let r=await finClient.from('inventory_items').insert([{...row,account:a,editor:ed}]).select();
+    if(r.error&&/editor/i.test(r.error.message||''))r=await finClient.from('inventory_items').insert([{...row,account:a}]).select();
+    if(r.error||!r.data||!r.data.length)throw new Error(r.error?r.error.message:'database tidak merespons');
     const q=parseFloat(g('sfQty'))||0,c=parseFloat(g('sfCost'))||0;if(q>0){if(!(c>0)){alert('Isi harga beli untuk stok awal.');return;}await posBuy(r.data[0].id,name,q,c,g('sfKas'));}}}
   if(mode==='buy'){const q=parseFloat(g('sfQty')),c=parseFloat(g('sfCost')),it=POS.items.find(i=>i.id===id);if(!(q>0)||!(c>0)){alert('Isi jumlah dan harga beli.');return;}await posBuy(id,it.name,q,c,g('sfKas'));}
   if(mode==='adj'){const q=parseFloat(g('sfQty')),n=g('sfNote').trim();if(!q||!n){alert('Isi selisih jumlah dan catatan.');return;}
