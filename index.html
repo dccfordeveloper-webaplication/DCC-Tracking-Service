@@ -2930,7 +2930,7 @@ async function posLoad(){
  if(bad){POS.err=bad.error.message;POS.loaded=true;return posRefreshAll();}
  POS.err='';POS.accounts=r[0].data.map(a=>a.name);POS.opt={};
  r[0].data.forEach(a=>{let o=a.options;if(typeof o==='string'){try{o=JSON.parse(o)}catch(e){o=null}}POS.opt[a.name]=o&&o.in&&o.out?o:{in:{cashTypes:[]},out:{cashTypes:[]}};});
- POS.items=r[1].data.map(i=>({id:i.id,account:i.account,name:i.name,unit:i.unit||'pcs',sellPrice:Number(i.sell_price||0),barcode:i.barcode||''}));
+ POS.items=r[1].data.map(i=>({id:i.id,account:i.account,name:i.name,unit:i.unit||'pcs',sellPrice:Number(i.sell_price||0),barcode:i.barcode||'',editor:i.editor||''}));
  POS.moves=r[2].data.map(m=>({id:m.id,account:m.account,itemId:m.item_id,date:m.date,type:m.type,qty:Number(m.qty),unitCost:Number(m.unit_cost||0)}));
  if(!POS.accounts.includes(POS.s.account))POS.s.account=POS.accounts[0]||'';
  POS.cart=POS.cart.filter(c=>c.type!=='stock'||POS.items.some(i=>i.id===c.id));
@@ -3510,7 +3510,7 @@ function renderTabStok(){
   <button onclick="posStokForm('new')" class="${BTN}bg-dcc-accent hover:bg-dcc-accentHover text-white"><i class="fa-solid fa-plus"></i> Barang</button></div></div>
   <div class="bg-gradient-to-r from-[#003b87] to-[#0058c4] text-white rounded-2xl p-4"><span class="text-[11px] text-blue-200 uppercase">Nilai Persediaan (HPP rata-rata)</span><div class="text-3xl font-extrabold font-mono">${posRp(tot)}</div></div>
   <div class="bg-white rounded-2xl border border-slate-200 table-scroll"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th class="p-3 text-left">Barang</th><th class="p-3">Stok</th><th class="p-3 text-right">HPP</th><th class="p-3 text-right">Harga Jual</th><th class="p-3 text-right">Margin</th><th class="p-3"></th></tr></thead><tbody>
-  ${l.map(i=>{const m=i.avg>0?(i.sellPrice-i.avg)/i.avg*100:null;return `<tr class="border-t border-slate-100"><td class="p-3 font-semibold">${pe(i.name)}<div class="text-[10px] text-slate-400">${i.barcode?pe(i.barcode):'tanpa barcode'}</div></td><td class="p-3 text-center font-bold ${i.qty<=0?'text-rose-500':''}">${+i.qty.toFixed(2)} ${pe(i.unit)}</td><td class="p-3 text-right">${posRp(i.avg)}</td><td class="p-3 text-right font-bold text-[#0058c4]">${posRp(i.sellPrice)}</td><td class="p-3 text-right ${m===null?'text-slate-400':m>=10?'text-emerald-600':'text-rose-500'} font-bold">${m===null?'-':m.toFixed(1)+'%'}</td>
+  ${l.map(i=>{const m=i.avg>0?(i.sellPrice-i.avg)/i.avg*100:null;return `<tr class="border-t border-slate-100"><td class="p-3 font-semibold">${pe(i.name)}<div class="text-[10px] text-slate-400">${i.barcode?pe(i.barcode):'tanpa barcode'}</div>${i.editor?`<div class="text-[10px] text-slate-400"><i class="fa-solid fa-user"></i> Auditor: ${pe(i.editor)}</div>`:''}</td><td class="p-3 text-center font-bold ${i.qty<=0?'text-rose-500':''}">${+i.qty.toFixed(2)} ${pe(i.unit)}</td><td class="p-3 text-right">${posRp(i.avg)}</td><td class="p-3 text-right font-bold text-[#0058c4]">${posRp(i.sellPrice)}</td><td class="p-3 text-right ${m===null?'text-slate-400':m>=10?'text-emerald-600':'text-rose-500'} font-bold">${m===null?'-':m.toFixed(1)+'%'}</td>
   <td class="p-3 text-right whitespace-nowrap"><button onclick="posStokForm('buy',${i.id})" class="${BTN}bg-blue-100 text-blue-700">Beli</button> <button onclick="posStokForm('adj',${i.id})" class="${BTN}bg-amber-100 text-amber-700">Sesuaikan</button> <button onclick="posStokForm('edit',${i.id})" class="${BTN}bg-slate-100 text-slate-700">Edit</button></td></tr>`;}).join('')||'<tr><td colspan="6" class="p-8 text-center text-slate-400">Belum ada barang.</td></tr>'}</tbody></table></div></div>`;}
 function posStokForm(mode,id){const it=POS.items.find(i=>i.id===id)||{},o=POS.opt[POS.s.account]||{out:{cashTypes:[]}};
  const f=(i,l,v,t)=>`<div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">${l}</label><input id="${i}" value="${pe(v==null?'':v)}" ${t||''} class="${INP}"></div>`;
@@ -3520,27 +3520,31 @@ function posStokForm(mode,id){const it=POS.items.find(i=>i.id===id)||{},o=POS.op
  if(mode==='new'||mode==='edit')body=f('sfName','Nama',it.name,'required')+f('sfBar','Barcode (opsional)',it.barcode)+`<div class="grid grid-cols-2 gap-2">${f('sfUnit','Satuan',it.unit||'pcs')}${f('sfPrice','Harga jual (Rp)',it.sellPrice||'','type="number" min="0"')}</div>`+(mode==='new'?`<div class="text-[11px] font-bold text-slate-500 pt-1">Stok awal (opsional, tercatat sebagai pengeluaran)</div><div class="grid grid-cols-2 gap-2">${f('sfQty','Jumlah','','type="number" min="0" step="any"')}${f('sfCost','Harga beli/satuan','','type="number" min="0"')}</div>${kas}`:'');
  if(mode==='buy')body=`<div class="grid grid-cols-2 gap-2">${f('sfQty','Jumlah','','type="number" min="0" step="any"')}${f('sfCost','Harga beli/satuan',Math.round((posWalk()[id]||{avg:0}).avg)||'','type="number" min="0"')}</div>${kas}`;
  if(mode==='adj')body=f('sfQty','Selisih jumlah (minus = berkurang)','','type="number" step="any"')+f('sfNote','Catatan (wajib)','');
+ body+=f('sfAuditor','Nama Auditor <span class="text-red-500">*</span>','','required placeholder="Wajib diisi" autocomplete="off"');
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${pe(title)}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div><div class="space-y-2.5">${body}</div><button onclick="posStokSave('${mode}',${id||0})" class="w-full py-3 rounded-2xl bg-[#003b87] text-white font-bold text-sm">Simpan</button>`);}
 async function posFinTx(row){const r=await posInsTx(row);if(r.error||!r.data||!r.data.length)throw new Error(r.error?r.error.message:'database tidak merespons');return r.data[0].id;}
 async function posFinMove(row){const r=await finClient.from('inventory_moves').insert([row]).select();if(r.error)throw new Error(r.error.message);}
-async function posBuy(itemId,name,qty,cost,kas){const d=posToday(),a=POS.s.account;let tx=null;
- try{tx=await posFinTx({account:a,type:'out',date:d,description:'Beli stok: '+name,qty,category:'Belanja Stok',cash_type:kas,amount:cost,recipient:(POS.s.cashier||'').trim()||undefined});
-  await posFinMove({account:a,item_id:itemId,date:d,type:'in',qty,unit_cost:cost,unit_price:0,note:'',transaction_id:tx});}
+async function posBuy(itemId,name,qty,cost,kas,aud){const d=posToday(),a=POS.s.account;let tx=null;
+ try{tx=await posFinTx({account:a,type:'out',date:d,description:'Beli stok: '+name,qty,category:'Belanja Stok',cash_type:kas,amount:cost,recipient:aud});
+  await posFinMove({account:a,item_id:itemId,date:d,type:'in',qty,unit_cost:cost,unit_price:0,note:'Auditor: '+aud,transaction_id:tx});}
  catch(e){if(tx)await finClient.from('transactions').delete().eq('id',tx);throw e;}}
 async function posStokSave(mode,id){const g=i=>$p(i)?$p(i).value:'',a=POS.s.account;
+ const aud=g('sfAuditor').trim();if(!aud){alert('Nama auditor wajib diisi.');const ea=$p('sfAuditor');if(ea)ea.focus();return;}
  try{
   if(mode==='new'||mode==='edit'){const name=g('sfName').trim();if(!name){alert('Nama wajib diisi.');return;}
    const row={name,unit:g('sfUnit').trim()||'pcs',sell_price:parseFloat(g('sfPrice'))||0,barcode:g('sfBar').trim()||null};
-   if(mode==='edit'){const r=await finClient.from('inventory_items').update(row).eq('id',id);if(r.error)throw new Error(r.error.message);}
+   if(mode==='edit'){let r=await finClient.from('inventory_items').update({...row,editor:aud}).eq('id',id);
+    if(r.error&&/editor/i.test(r.error.message||''))r=await finClient.from('inventory_items').update(row).eq('id',id);
+    if(r.error)throw new Error(r.error.message);}
    else{if(POS.items.some(i=>i.account===a&&i.name.toLowerCase()===name.toLowerCase())){alert('Nama barang sudah ada.');return;}
-    const ed=(POS.s.cashier||'').trim()||undefined;let r=await finClient.from('inventory_items').insert([{...row,account:a,editor:ed}]).select();
+    let r=await finClient.from('inventory_items').insert([{...row,account:a,editor:aud}]).select();
     if(r.error&&/editor/i.test(r.error.message||''))r=await finClient.from('inventory_items').insert([{...row,account:a}]).select();
     if(r.error||!r.data||!r.data.length)throw new Error(r.error?r.error.message:'database tidak merespons');
-    const q=parseFloat(g('sfQty'))||0,c=parseFloat(g('sfCost'))||0;if(q>0){if(!(c>0)){alert('Isi harga beli untuk stok awal.');return;}await posBuy(r.data[0].id,name,q,c,g('sfKas'));}}}
-  if(mode==='buy'){const q=parseFloat(g('sfQty')),c=parseFloat(g('sfCost')),it=POS.items.find(i=>i.id===id);if(!(q>0)||!(c>0)){alert('Isi jumlah dan harga beli.');return;}await posBuy(id,it.name,q,c,g('sfKas'));}
+    const q=parseFloat(g('sfQty'))||0,c=parseFloat(g('sfCost'))||0;if(q>0){if(!(c>0)){alert('Isi harga beli untuk stok awal.');return;}await posBuy(r.data[0].id,name,q,c,g('sfKas'),aud);}}}
+  if(mode==='buy'){const q=parseFloat(g('sfQty')),c=parseFloat(g('sfCost')),it=POS.items.find(i=>i.id===id);if(!(q>0)||!(c>0)){alert('Isi jumlah dan harga beli.');return;}await posBuy(id,it.name,q,c,g('sfKas'),aud);}
   if(mode==='adj'){const q=parseFloat(g('sfQty')),n=g('sfNote').trim();if(!q||!n){alert('Isi selisih jumlah dan catatan.');return;}
    const st=(posWalk()[id]||{qty:0}).qty;if(q<0&&-q>st+1e-9){alert('Stok tidak cukup (sisa '+(+st.toFixed(2))+').');return;}
-   await posFinMove({account:a,item_id:id,date:posToday(),type:'adj',qty:q,unit_cost:0,unit_price:0,note:n});}
+   await posFinMove({account:a,item_id:id,date:posToday(),type:'adj',qty:q,unit_cost:0,unit_price:0,note:n+' [Auditor: '+aud+']'});}
  }catch(e){alert('Gagal menyimpan: '+e.message+(/barcode/i.test(e.message)?'\n\nJalankan migrasi_kasir.sql untuk menambah kolom barcode.':''));return;}
  posClose();await posLoad();}
 
