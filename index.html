@@ -297,10 +297,28 @@
                         items: s.items || []
                     }));
                 }
+                if (appData.customerActiveRecord) {
+                    const _id = String(appData.customerActiveRecord.id).toUpperCase();
+                    appData.customerActiveRecord = appData.orders.find(o => String(o.id).toUpperCase() === _id) || appData.services.find(x => String(x.id).toUpperCase() === _id) || appData.customerActiveRecord;
+                }
                 renderApp();
+                applyTrackDeepLink();
             } catch (err) {
                 console.error("Gagal sinkronisasi data Supabase:", err);
             }
+        }
+
+        // Tautan lacak: https://<situs>/?kode=SVC-1234 (dipakai QR di struk) langsung membuka halaman status transaksi
+        let _deepLinkDone = false;
+        function applyTrackDeepLink() {
+            if (_deepLinkDone) return;
+            _deepLinkDone = true;
+            let code = '';
+            try { const q = new URLSearchParams(location.search); code = (q.get('kode') || q.get('code') || '').trim().toUpperCase(); } catch (e) {}
+            if (!code || appData.currentRole !== 'customer') return;
+            const found = appData.orders.find(o => String(o.id).toUpperCase() === code) || appData.services.find(x => String(x.id).toUpperCase() === code);
+            if (found) { appData.customerActiveRecord = found; renderApp(); }
+            else showToast('Kode Transaksi ' + code + ' tidak ditemukan.', 'error');
         }
 
         function initRealtimeSubscription() {
@@ -1617,27 +1635,27 @@
                                 <input type="date" id="ordDate" value="${newDate}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none font-medium text-slate-700">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pelanggan</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pelanggan <span class="text-red-500">*</span></label>
                                 <input type="text" id="ordCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian <span class="text-red-500">*</span></label>
                                 <input type="text" id="ordRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">No. WhatsApp</label>
-                                <input type="text" id="ordPhone" value="${isEdit && record.phone ? record.phone : ''}" placeholder="mis: 08123456789" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                                <label class="block text-xs font-bold text-slate-600 mb-1">No. WhatsApp <span class="text-red-500">*</span></label>
+                                <input type="text" id="ordPhone" required value="${isEdit && record.phone ? record.phone : ''}" placeholder="mis: 08123456789" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Jenis Pesanan</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Jenis Pesanan <span class="text-red-500">*</span></label>
                                 <input type="text" id="ordType" value="${isEdit ? record.orderType : ''}" placeholder="mis: PC Full Set" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1"><i class="fa-solid fa-user-check text-slate-400 mr-1"></i> Nama Penerima <span class="font-normal text-slate-400">(staf yang menerima transaksi ini)</span></label>
-                            <input type="text" id="ordReceiver" value="${isEdit && record.receiver ? escapeHtml(record.receiver) : ''}" ${isEdit ? '' : 'required'} placeholder="mis: nama admin / staf DCC" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                            <label class="block text-xs font-bold text-slate-600 mb-1"><i class="fa-solid fa-user-check text-slate-400 mr-1"></i> Nama Penerima <span class="font-normal text-slate-400">(staf yang menerima transaksi ini)</span> <span class="text-red-500">*</span></label>
+                            <input type="text" id="ordReceiver" value="${isEdit && record.receiver ? escapeHtml(record.receiver) : ''}" required placeholder="mis: nama admin / staf DCC" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                         </div>
                         <div class="space-y-2 border-t border-b border-slate-100 py-4">
                             <label class="block text-xs font-bold text-blue-950"><i class="fa-solid fa-file-excel text-emerald-600 mr-1"></i> Paste Tabel Rancangan dari Excel</label>
@@ -1661,8 +1679,8 @@
                                 <input type="number" id="ordPrice" value="${isEdit ? record.estimatedPrice : 0}" oninput="updProfit('ordPrice','ordCost','ordProfitInfo')" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Beban Biaya / Harga Beli (Rp) <span class="font-medium text-rose-500">(modal)</span></label>
-                                <input type="number" min="0" id="ordCost" value="${isEdit && record.costPrice ? record.costPrice : 0}" oninput="updProfit('ordPrice','ordCost','ordProfitInfo')" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Beban Biaya / Harga Beli (Rp) <span class="font-medium text-rose-500">(modal)</span> <span class="text-red-500">*</span></label>
+                                <input type="number" min="0" id="ordCost" required placeholder="0" value="${isEdit ? (record.costPrice || 0) : ''}" oninput="updProfit('ordPrice','ordCost','ordProfitInfo')" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                         </div>
                         <div id="ordProfitInfo"></div>
@@ -1789,6 +1807,8 @@
             const phoneVal = document.getElementById('ordPhone').value;
             const receiverVal = document.getElementById('ordReceiver').value.trim();
             const orderTypeVal = document.getElementById('ordType').value;
+            const _req = [[customerNameVal, 'Nama pelanggan', 'ordCustomer'], [roomVal, 'Kamar / bagian', 'ordRoom'], [phoneVal, 'No. WhatsApp', 'ordPhone'], [orderTypeVal, 'Jenis pesanan', 'ordType'], [receiverVal, 'Nama penerima', 'ordReceiver'], [document.getElementById('ordCost').value, 'Beban biaya / harga beli', 'ordCost']];
+            for (const [v, lbl, fid] of _req) { if (!String(v).trim()) { showToast(lbl + ' wajib diisi!', 'error'); const f = document.getElementById(fid); if (f) f.focus(); return; } }
             const priceVal = parseInt(document.getElementById('ordPrice').value) || 0;
             const costVal = Math.max(0, parseInt(document.getElementById('ordCost').value) || 0);
             if (costVal > 0 && costVal >= priceVal) {
@@ -1894,34 +1914,34 @@
                                 <input type="date" id="svcDate" value="${newDate}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none font-medium text-slate-700">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pelanggan</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Nama Pelanggan <span class="text-red-500">*</span></label>
                                 <input type="text" id="svcCustomer" value="${isEdit ? record.customerName : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Kamar / Bagian <span class="text-red-500">*</span></label>
                                 <input type="text" id="svcRoom" value="${isEdit ? record.room : ''}" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">No. WhatsApp</label>
-                                <input type="text" id="svcPhone" value="${isEdit && record.phone ? record.phone : ''}" placeholder="mis: 08123456789" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                                <label class="block text-xs font-bold text-slate-600 mb-1">No. WhatsApp <span class="text-red-500">*</span></label>
+                                <input type="text" id="svcPhone" required value="${isEdit && record.phone ? record.phone : ''}" placeholder="mis: 08123456789" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1"><i class="fa-solid fa-user-check text-slate-400 mr-1"></i> Nama Penerima <span class="font-normal text-slate-400">(staf yang menerima transaksi ini)</span></label>
-                            <input type="text" id="svcReceiver" value="${isEdit && record.receiver ? escapeHtml(record.receiver) : ''}" ${isEdit ? '' : 'required'} placeholder="mis: nama admin / staf DCC" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                            <label class="block text-xs font-bold text-slate-600 mb-1"><i class="fa-solid fa-user-check text-slate-400 mr-1"></i> Nama Penerima <span class="font-normal text-slate-400">(staf yang menerima transaksi ini)</span> <span class="text-red-500">*</span></label>
+                            <input type="text" id="svcReceiver" value="${isEdit && record.receiver ? escapeHtml(record.receiver) : ''}" required placeholder="mis: nama admin / staf DCC" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                         </div>
                         <div class="space-y-3 border-t border-b border-slate-100 py-4">
                             <div class="flex justify-between items-center">
-                                <label class="block text-xs font-bold text-slate-800"><i class="fa-solid fa-boxes-stacked text-amber-500 mr-1"></i> Barang Service & Kendala</label>
+                                <label class="block text-xs font-bold text-slate-800"><i class="fa-solid fa-boxes-stacked text-amber-500 mr-1"></i> Barang Service & Kendala <span class="text-red-500">*</span></label>
                                 <button type="button" onclick="addServiceItemRow()" class="px-3 py-1 bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold rounded-xl flex items-center gap-1"><i class="fa-solid fa-plus"></i> Tambah Servican</button>
                             </div>
                             <div id="serviceItemsContainer" class="space-y-3 max-h-48 overflow-y-auto pr-1"></div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Kelengkapan Barang</label>
-                            <input type="text" id="svcKelengkapan" value="${isEdit && record.kelengkapan ? record.kelengkapan : ''}" placeholder="mis: Unit & charger" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Kelengkapan Barang <span class="text-red-500">*</span></label>
+                            <input type="text" id="svcKelengkapan" required value="${isEdit && record.kelengkapan ? record.kelengkapan : ''}" placeholder="mis: Unit & charger" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl outline-none">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan</label>
@@ -1936,8 +1956,8 @@
                                 <input type="number" id="svcPrice" value="${isEdit ? record.estimatedPrice : 0}" oninput="updProfit('svcPrice','svcCost','svcProfitInfo')" required class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Beban Biaya Service (Rp) <span class="font-medium text-rose-500">(modal)</span></label>
-                                <input type="number" min="0" id="svcCost" value="${isEdit && record.costPrice ? record.costPrice : 0}" oninput="updProfit('svcPrice','svcCost','svcProfitInfo')" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Beban Biaya Service (Rp) <span class="font-medium text-rose-500">(modal)</span> <span class="text-red-500">*</span></label>
+                                <input type="number" min="0" id="svcCost" required placeholder="0" value="${isEdit ? (record.costPrice || 0) : ''}" oninput="updProfit('svcPrice','svcCost','svcProfitInfo')" class="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl font-mono font-bold text-slate-800 outline-none">
                             </div>
                         </div>
                         <div id="pricePickerPanel" class="hidden border border-blue-200 bg-blue-50/40 rounded-2xl p-3 space-y-2"></div>
@@ -1980,8 +2000,12 @@
             itemRows.forEach(row => {
                 const name = row.querySelector('.svc-item-name').value;
                 const issue = row.querySelector('.svc-item-issue').value;
-                if (name && issue) items.push({ name, issue });
+                if (name.trim() && issue.trim()) items.push({ name, issue });
             });
+            if (items.length !== itemRows.length) {
+                showToast('Setiap barang service wajib diisi lengkap (barang dan kendala)!', 'error');
+                return;
+            }
 
             if (items.length === 0) {
                 showToast('Harap isi minimal 1 barang service!', 'error');
@@ -1995,6 +2019,8 @@
             const phoneVal = document.getElementById('svcPhone').value;
             const receiverVal = document.getElementById('svcReceiver').value.trim();
             const kelengkapanVal = document.getElementById('svcKelengkapan').value;
+            const _req = [[customerNameVal, 'Nama pelanggan', 'svcCustomer'], [roomVal, 'Kamar / bagian', 'svcRoom'], [phoneVal, 'No. WhatsApp', 'svcPhone'], [receiverVal, 'Nama penerima', 'svcReceiver'], [kelengkapanVal, 'Kelengkapan barang', 'svcKelengkapan'], [document.getElementById('svcCost').value, 'Beban biaya service', 'svcCost']];
+            for (const [v, lbl, fid] of _req) { if (!String(v).trim()) { showToast(lbl + ' wajib diisi!', 'error'); const f = document.getElementById(fid); if (f) f.focus(); return; } }
             const notesVal = document.getElementById('svcNotes').value;
             const priceVal = parseInt(document.getElementById('svcPrice').value) || 0;
             const costVal = Math.max(0, parseInt(document.getElementById('svcCost').value) || 0);
@@ -2100,8 +2126,8 @@
                     `💰 *Estimasi Harga:* ${formatRupiah(item.estimatedPrice)}\n` +
                     `🔄 *Status Terkini:* ${ORDER_STAGES[item.progress].title}\n` +
                     `------------------------------------\n` +
-                    `Antum dapat memantau progres pesanan secara real-time melalui website kami dengan memasukkan kode transaksi di atas:\n` +
-                    `https://tracking-service-dcc.vercel.app/\n\n` +
+                    `Antum dapat memantau progres pesanan secara real-time melalui tautan berikut:\n` +
+                    `https://tracking-service-dcc.vercel.app/?kode=${encodeURIComponent(item.id)}\n\n` +
                     `Terima kasih telah memercayakan kebutuhan Komputer Antum kepada DCC Store! 🙏`;
             } else {
                 const item = appData.services.find(s => s.id === id);
@@ -2122,8 +2148,8 @@
                     `*- Estimasi Selesai :* ${item.date} (Biaya: ${formatRupiah(item.estimatedPrice)})\n\n` +
                     `Note : _Kami akan hubungi kembali jika pengerjaan selesai/belum atau jika ada konfirmasi pergantian komponen. Terima kasih!_🙏😊\n\n` +
                     `Wassalamualaikum👋\n\n` +
-                    `📌 *Lacak progres service secara real-time melalui aplikasi dengan memasukkan kode transaksi di atas:*\n` +
-                    `https://tracking-service-dcc.vercel.app/`;
+                    `📌 *Lacak progres service secara real-time melalui tautan berikut:*\n` +
+                    `https://tracking-service-dcc.vercel.app/?kode=${encodeURIComponent(item.id)}`;
             }
 
             let formattedPhone = customerPhone.replace(/[^0-9]/g, '');
@@ -3131,8 +3157,88 @@ function posReceipt(sale){if(sale.kind==='diag')return posDiagReceipt(sale);cons
  // Pembayaran
  add(lr(sale.method==='cash'?'Tunai':'Non-tunai',R(sale.paid)));
  if(sale.change>0)add(lr('Kembali',R(sale.change)),1);
+ {const refs=[...new Set((sale.items||[]).map(i=>i.ref).filter(r=>r&&/^(ORD|SVC)-/i.test(String(r))))].slice(0,3);
+  if(refs.length){line('-');add(ctr('Scan QR untuk lacak status'),1);refs.forEach(r=>{add(ctr(String(r)),1);L.push(posQrLine(posTrackLink(r)));});}}
  add('');add(ctr('TERIMA KASIH'),1);wrap(posCfg(sale,'footer')).forEach(x=>add(ctr(x)));return L;}
 // ---------- Cetak Diagnosa Service (jalur cetak sama dengan struk: browser, printer lokal, atau relay ke PC printer) ----------
+// ---------- Pembangkit QR Code mini (mode byte, koreksi error M, versi 1-10, tanpa library luar) ----------
+const QR=(()=>{
+ const EXP=new Array(512),LOG=new Array(256);{let x=1;for(let i=0;i<255;i++){EXP[i]=x;LOG[x]=i;x<<=1;if(x&256)x^=0x11d;}for(let i=255;i<512;i++)EXP[i]=EXP[i-255];}
+ const gmul=(a,b)=>a&&b?EXP[LOG[a]+LOG[b]]:0;
+ const rsGen=n=>{let g=[1];for(let i=0;i<n;i++){const ng=new Array(g.length+1).fill(0);g.forEach((c,j)=>{ng[j]^=c;ng[j+1]^=gmul(c,EXP[i]);});g=ng;}return g;};
+ const rsEnc=(d,n)=>{const g=rsGen(n),r=new Array(n).fill(0);d.forEach(b=>{const f=b^r.shift();r.push(0);if(f)for(let i=0;i<n;i++)r[i]^=gmul(g[i+1],f);});return r;};
+ // ECC level M: [ecc per block, [blocks1,data1],[blocks2,data2]]
+ const EC={1:[10,1,16,0,0],2:[16,1,28,0,0],3:[26,1,44,0,0],4:[18,2,32,0,0],5:[24,2,43,0,0],6:[16,4,27,0,0],7:[18,4,31,0,0],8:[22,2,38,2,39],9:[22,3,36,2,37],10:[26,4,43,1,44]};
+ const ALIGN={1:[],2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34],7:[6,22,38],8:[6,24,42],9:[6,26,46],10:[6,28,50]};
+ const capBytes=v=>{const e=EC[v];return e[1]*e[2]+e[3]*e[4];};
+ function encode(text){
+  const bytes=[...unescape(encodeURIComponent(text))].map(c=>c.charCodeAt(0));
+  let v=1;for(;v<=10;v++){const cb=v<10?8:16;if(4+cb+bytes.length*8<=capBytes(v)*8)break;}
+  if(v>10)throw new Error('Teks QR terlalu panjang');
+  const cbits=8,total=capBytes(v),bits=[];
+  const put=(val,n)=>{for(let i=n-1;i>=0;i--)bits.push((val>>i)&1);};
+  put(4,4);put(bytes.length,cbits);bytes.forEach(b=>put(b,8));
+  put(0,Math.min(4,total*8-bits.length));while(bits.length%8)bits.push(0);
+  const data=[];for(let i=0;i<bits.length;i+=8){let b=0;for(let k=0;k<8;k++)b=b<<1|bits[i+k];data.push(b);}
+  for(let p=0;data.length<total;p++)data.push(p%2?0x11:0xEC);
+  const e=EC[v],blocks=[];let off=0;
+  for(let i=0;i<e[1]+e[3];i++){const len=i<e[1]?e[2]:e[4];blocks.push(data.slice(off,off+len));off+=len;}
+  const eccs=blocks.map(b=>rsEnc(b,e[0])),fin=[];
+  const maxd=Math.max(e[2],e[4]);for(let i=0;i<maxd;i++)blocks.forEach(b=>{if(i<b.length)fin.push(b[i]);});
+  for(let i=0;i<e[0];i++)eccs.forEach(b=>fin.push(b[i]));
+  const n=17+4*v,M=Array.from({length:n},()=>new Array(n).fill(null)),F=Array.from({length:n},()=>new Array(n).fill(false));
+  const set=(r,c,val,f)=>{if(r<0||c<0||r>=n||c>=n)return;M[r][c]=val;if(f!==false)F[r][c]=true;};
+  const finder=(r,c)=>{for(let i=-1;i<=7;i++)for(let j=-1;j<=7;j++){const d=i>=0&&i<=6&&j>=0&&j<=6&&(i==0||i==6||j==0||j==6||(i>=2&&i<=4&&j>=2&&j<=4));set(r+i,c+j,d);}};
+  finder(0,0);finder(0,n-7);finder(n-7,0);
+  for(let i=8;i<n-8;i++){set(6,i,i%2==0);set(i,6,i%2==0);}
+  const al=ALIGN[v];al.forEach(r=>al.forEach(c=>{if((r==6&&c==6)||(r==6&&c==al[al.length-1])||(r==al[al.length-1]&&c==6))return;
+   for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++)set(r+i,c+j,Math.max(Math.abs(i),Math.abs(j))!=1);}));
+  set(n-8,8,true); // dark module
+  // area format (cadangkan)
+  for(let i=0;i<9;i++){if(!F[8][i])set(8,i,false);if(!F[i][8])set(i,8,false);}
+  for(let i=0;i<8;i++){if(!F[8][n-1-i])set(8,n-1-i,false);if(!F[n-1-i][8])set(n-1-i,8,false);}
+  // versi (>=7)
+  if(v>=7){let r=v;for(let i=0;i<12;i++)r=(r<<1)^((r>>11)*0x1F25);const vb=(v<<12)|r;
+   for(let i=0;i<18;i++){const b=(vb>>i)&1,a=n-11+i%3,c=Math.floor(i/3);set(c,a,!!b);set(a,c,!!b);}}
+  // data
+  const dbits=[];fin.forEach(b=>{for(let i=7;i>=0;i--)dbits.push((b>>i)&1);});
+  const placed=(mask)=>{const R=M.map(r=>r.slice());let k=0,up=true;
+   for(let c=n-1;c>0;c-=2){if(c==6)c--;for(let t=0;t<n;t++){const r=up?n-1-t:t;for(let d=0;d<2;d++){const cc=c-d;if(F[r][cc])continue;let bit=k<dbits.length?dbits[k]:0;k++;
+     const m=[(r+cc)%2==0,r%2==0,cc%3==0,(r+cc)%3==0,(Math.floor(r/2)+Math.floor(cc/3))%2==0,(r*cc)%2+(r*cc)%3==0,((r*cc)%2+(r*cc)%3)%2==0,((r+cc)%2+(r*cc)%3)%2==0][mask];
+     R[r][cc]=!!(bit^(m?1:0));}}up=!up;}return R;};
+  const fmt=(mask)=>{let d=(0<<3)|mask; // ECC M = 00
+   let r=d;for(let i=0;i<10;i++)r=(r<<1)^((r>>9)*0x537);return((d<<10)|r)^0x5412;};
+  const putFmt=(R,mask)=>{const f=fmt(mask),b=i=>!!((f>>i)&1);
+   for(let i=0;i<=5;i++)R[i][8]=b(i);R[7][8]=b(6);R[8][8]=b(7);R[8][7]=b(8);for(let i=9;i<15;i++)R[8][14-i]=b(i);
+   for(let i=0;i<8;i++)R[8][n-1-i]=b(i);for(let i=8;i<15;i++)R[n-15+i][8]=b(i);R[n-8][8]=true;};
+  const pen=R=>{let s=0;for(let a=0;a<2;a++){for(let i=0;i<n;i++){let run=1;for(let j=1;j<n;j++){const x=a?R[j][i]:R[i][j],y=a?R[j-1][i]:R[i][j-1];if(x==y){run++;if(run==5)s+=3;else if(run>5)s++;}else run=1;}}}
+   for(let i=0;i<n-1;i++)for(let j=0;j<n-1;j++)if(R[i][j]==R[i+1][j]&&R[i][j]==R[i][j+1]&&R[i][j]==R[i+1][j+1])s+=3;
+   let dk=0;R.forEach(r=>r.forEach(x=>{if(x)dk++;}));s+=Math.floor(Math.abs(dk*20-n*n*10)/(n*n))*10;return s;};
+  let best=null,bs=1e9;for(let m=0;m<8;m++){const R=placed(m);putFmt(R,m);const p=pen(R);if(p<bs){bs=p;best=R;}}
+  return best;
+ }
+ return {encode};
+})();
+
+const POS_TRACK_BASE='https://tracking-service-dcc.vercel.app/';
+const posTrackLink=code=>POS_TRACK_BASE+'?kode='+encodeURIComponent(code);
+const posQrLine=url=>({t:'',b:false,qr:url});
+// SVG QR (untuk pratinjau & cetak browser)
+function posQrSvg(url,css){try{const m=QR.encode(url),n=m.length,q=2,t=n+2*q;let d='';
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(m[y][x])d+=`M${x+q} ${y+q}h1v1h-1z`;
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t} ${t}" shape-rendering="crispEdges" style="${css||''}"><rect width="${t}" height="${t}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;}catch(e){return '';}}
+// Gabungkan baris struk menjadi HTML: teks dalam <pre>, QR sebagai gambar di tengah
+function posLinesHtml(L,preStyle,qrCss,boxCss){let out='',buf=[];
+ const flush=()=>{if(buf.length){out+=`<pre style="${preStyle||''}">${buf.join('\n')}</pre>`;buf=[];}};
+ L.forEach(x=>{if(x.qr){flush();out+=`<div style="${boxCss||''}">${posQrSvg(x.qr,qrCss)}</div>`;}else buf.push((x.b?'<b>':'')+pe(x.t)+(x.b?'</b>':''));});
+ flush();return out;}
+// QR -> raster 1-bit ESC/POS (GS v 0), rata tengah; berlaku di semua printer termal tanpa perintah QR bawaan
+function posQrBytes(url){const m=QR.encode(url),n=m.length,q=2,tot=n+2*q,cols=Math.max(20,+POS.s.cols||32),maxW=Math.floor((cols*12-24)/8)*8;
+ const k=Math.max(2,Math.min(7,Math.floor(Math.min(240,maxW)/tot))),W=Math.ceil(tot*k/8)*8,H=tot*k,wb=W/8,o=[0x1B,0x61,1];
+ const dark=(x,y)=>{const mx=Math.floor(x/k)-q,my=Math.floor(y/k)-q;return mx>=0&&my>=0&&mx<n&&my<n&&m[my][mx];};
+ for(let y0=0;y0<H;y0+=96){const h=Math.min(96,H-y0);o.push(0x1D,0x76,0x30,0,wb&255,wb>>8,h&255,h>>8);
+  for(let y=y0;y<y0+h;y++)for(let bx=0;bx<wb;bx++){let b=0;for(let i=0;i<8;i++)if(dark(bx*8+i,y))b|=0x80>>i;o.push(b);}}
+ o.push(0x0A,0x1B,0x61,0);return o;}
 const POS_TRACK_URL='tracking-service-dcc.vercel.app';
 function posDiagSale(id){const r=appData.services.find(x=>x.id===id);if(!r)return null;const st=SERVICE_STAGES[r.progress]||SERVICE_STAGES[0];
  return {kind:'diag',id:r.id,at:new Date(),date:r.date||'',customerName:r.customerName||'',room:r.room||'',phone:r.phone||'',receiver:r.receiver||'',
@@ -3157,7 +3263,7 @@ function posDiagReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>St
  if(sale.kelengkapan){line('-');wrap('Kelengkapan: '+sale.kelengkapan).forEach(x=>add(x));}
  if(sale.notes){line('-');wrap('Catatan: '+sale.notes).forEach(x=>add(x));}
  line('=');add(lr('ESTIMASI BIAYA',R(sale.estimatedPrice)),1);line('=');
- add(ctr('Pantau status service:'));add(ctr(POS_TRACK_URL));add(ctr('Kode: '+sale.id),1);
+ add(ctr('Scan QR untuk lacak status'),1);L.push(posQrLine(posTrackLink(sale.id)));add(ctr('atau buka:'));add(ctr(POS_TRACK_URL));add(ctr('Kode: '+sale.id),1);
  add('');const dots=Math.max(4,Math.floor((c-3)/2)-2);add(lr('Penerima','Pelanggan'));add('');add('');add(lr('('+'.'.repeat(dots)+')','('+'.'.repeat(dots)+')'));
  add('');add(ctr('TERIMA KASIH'),1);wrap(posCfg(sale,'footer')).forEach(x=>add(ctr(x)));
  if(sale.printedBy)add(ctr('Dicetak oleh: '+sale.printedBy));
@@ -3165,7 +3271,7 @@ function posDiagReceipt(sale){const c=Math.max(20,+POS.s.cols||32),L=[],p2=n=>St
 function posDiagPreview(id){const s=posDiagSale(id);if(!s){alert('Data service tidak ditemukan.');return;}posLast(false,s);}
 function posReceiptHtml(sale){const L=posReceipt(sale),c=Math.max(20,+POS.s.cols||32);
  const logo=posCfg(sale,'showLogo')!==false?`<img src="${POS_LOGO}" alt="" style="display:block;margin:0 auto 8px;width:24mm;height:auto">`:'';
- return `<div id="posReceiptPrint" class="pos-rcpt" style="--cols:${c};box-sizing:content-box;background:#fff;color:#000;width:${c}ch;padding:10px 12px;font:12px/1.35 'Courier New',Courier,monospace">${logo}<pre style="margin:0;font:inherit;white-space:pre">${L.map(x=>(x.b?'<b>':'')+pe(x.t)+(x.b?'</b>':'')).join('\n')}</pre></div>`;}
+ return `<div id="posReceiptPrint" class="pos-rcpt" style="--cols:${c};box-sizing:content-box;background:#fff;color:#000;width:${c}ch;padding:10px 12px;font:12px/1.35 'Courier New',Courier,monospace">${logo}${posLinesHtml(L,'margin:0;font:inherit;white-space:pre','display:block;width:34ch;height:34ch;margin:0 auto','text-align:center;margin:4px 0')}</div>`;}
 function posLast(auto,sale){const s=sale||POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}POS.cur=s;
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">${s.kind==='diag'?'<i class="fa-solid fa-stethoscope text-[#003b87]"></i> Cetak Diagnosa Service':s.reprint?'<i class="fa-solid fa-print text-[#003b87]"></i> Cetak Ulang Struk':auto?'<i class="fa-solid fa-circle-check text-emerald-500"></i> Transaksi Tersimpan':'Struk Terakhir'}</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
   <div class="bg-slate-100 rounded-2xl p-3 flex justify-center overflow-x-auto max-h-[60vh] overflow-y-auto">${posReceiptHtml(s)}</div>
@@ -3184,7 +3290,9 @@ html,body{margin:0;padding:0;background:#fff;color:#000}
 img{display:block;margin:0 auto 2mm;width:24mm;height:auto;image-rendering:pixelated}
 pre{margin:0;font-family:'Courier New',Courier,monospace;font-size:calc(48mm / ${c} / .6);line-height:1.4;white-space:pre;color:#000;font-weight:normal;-webkit-text-stroke:.12px #000}
 b{font-weight:bold;-webkit-text-stroke:.2px #000}
-</style></head><body><div class="r">${logo}<pre>${L.map(x=>(x.b?'<b>':'')+pe(x.t)+(x.b?'</b>':'')).join('\n')}</pre></div></body></html>`;}
+.q{text-align:center;margin:1mm 0}
+.q svg{display:block;margin:0 auto;width:30mm;height:30mm;image-rendering:pixelated}
+</style></head><body><div class="r">${logo}${posLinesHtml(L,'','','').replace(/<div style="">/g,'<div class="q">')}</div></body></html>`;}
 function posPrintBrowser(){const s=POS.cur||POS.last;if(!s){alert('Belum ada transaksi pada sesi ini.');return;}
  const old=$p('posPrintFrame');if(old)old.remove();
  const f=document.createElement('iframe');f.id='posPrintFrame';f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
@@ -3202,7 +3310,8 @@ function posLogoBytes(){return new Promise(res=>{try{const im=new Image();
  im.onerror=()=>res([]);im.src=POS_LOGO;}catch(e){res([]);}});}
 async function posBytes(L,sale){const o=[0x1B,0x40],enc=t=>[...t].map(ch=>ch.charCodeAt(0)<128?ch.charCodeAt(0):63);
  if(posCfg(sale,'showLogo')!==false){const lg=await posLogoBytes();if(lg.length){o.push(0x1B,0x61,1);for(let i=0;i<lg.length;i++)o.push(lg[i]);o.push(0x1B,0x61,0,0x0A);}}
- L.forEach(x=>{if(x.b)o.push(0x1B,0x45,1);o.push(...enc(x.t),0x0A);if(x.b)o.push(0x1B,0x45,0);});o.push(0x1B,0x64,3);return new Uint8Array(o);}
+ for(const x of L){if(x.qr){try{const qb=posQrBytes(x.qr);for(let i=0;i<qb.length;i++)o.push(qb[i]);}catch(e){o.push(0x0A);}continue;}
+  if(x.b)o.push(0x1B,0x45,1);o.push(...enc(x.t),0x0A);if(x.b)o.push(0x1B,0x45,0);}o.push(0x1B,0x64,3);return new Uint8Array(o);}
 function posSalePayload(sale){const cfg=sale.cfg||{};POS_CFG_KEYS.forEach(k=>{if(cfg[k]==null)cfg[k]=POS.s[k];});
  return JSON.parse(JSON.stringify({...sale,cashier:sale.cashier||POS.s.cashier,cfg,at:sale.at instanceof Date?sale.at.toISOString():sale.at}));}
 function posDevice(){return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)?'HP':'PC';}
