@@ -3079,17 +3079,17 @@ function posVoid(){if(POS.cart.length&&confirm('Batalkan transaksi ini?'))posNew
 
 // ---------- Pembayaran ----------
 function posPay(){if(!POS.cart.length){alert('Keranjang kosong.');return;}const s=POS.s;
- if(!String(s.cashier||'').trim()){alert('Isi Nama kasir (User) di Pengaturan terlebih dahulu.');return posSettings();}
  if(!s.account||!s.cashKas){alert('Atur akun dan kas di Pengaturan terlebih dahulu.');return posSettings();}
  const t=posSub()-Math.min(POS.discount,posSub());
  posModal(`<div class="flex justify-between items-center"><h3 class="font-extrabold text-[#003b87]">Pembayaran</h3><button onclick="posClose()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div>
   <div class="text-center py-2"><div class="text-xs text-slate-500">Total Tagihan</div><div class="text-4xl font-extrabold font-mono text-[#003b87]">${posRp(t)}</div></div>
+  <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kasir / Penerima <span class="text-rose-500">* wajib diisi</span></label><input id="posCashier" value="${pe(s.cashier||'')}" required placeholder="Nama yang menerima pembayaran" autocomplete="off" class="${INP}"></div>
   <div class="grid grid-cols-2 gap-2"><button id="pmCash" onclick="posMethod('cash')" class="${BTN}bg-[#003b87] text-white">Tunai</button><button id="pmCard" onclick="posMethod('cashless')" class="${BTN}bg-slate-100 text-slate-700">Non-Tunai (QRIS/Transfer)</button></div>
   <input type="hidden" id="posMethod" value="cash"><div id="posCashBox" class="space-y-2"><input type="number" id="posPaid" oninput="posCalc(${t})" placeholder="Uang diterima" class="${INP} !text-lg font-bold text-right" min="0">
   <div class="grid grid-cols-3 gap-2"><button onclick="$p('posPaid').value=${t};posCalc(${t})" class="${BTN}bg-slate-100">Uang Pas</button><button onclick="$p('posPaid').value=50000;posCalc(${t})" class="${BTN}bg-slate-100">50.000</button><button onclick="$p('posPaid').value=100000;posCalc(${t})" class="${BTN}bg-slate-100">100.000</button></div>
   <div class="flex justify-between text-sm font-bold"><span>Kembalian</span><span id="posChange" class="font-mono text-emerald-600">Rp0</span></div></div>
   <button id="posGo" onclick="posCheckout()" class="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold">Proses &amp; Cetak Struk</button>`);
- setTimeout(()=>$p('posPaid')&&$p('posPaid').focus(),50);}
+ setTimeout(()=>{const e=String(s.cashier||'').trim()?$p('posPaid'):$p('posCashier');e&&e.focus();},50);}
 function posMethod(m){$p('posMethod').value=m;$p('posCashBox').classList.toggle('hidden',m!=='cash');$p('pmCash').className=BTN+(m==='cash'?'bg-[#003b87] text-white':'bg-slate-100 text-slate-700');$p('pmCard').className=BTN+(m!=='cash'?'bg-[#003b87] text-white':'bg-slate-100 text-slate-700');}
 function posCalc(t){const p=parseFloat($p('posPaid').value)||0;const c=$p('posChange');c.innerText=p>=t?posRp(p-t):'Kurang '+posRp(t-p);c.className='font-mono '+(p>=t?'text-emerald-600':'text-rose-500');}
 // Insert ke tabel transactions; bila kolom recipient belum ada di database, simpan tanpa kolom itu (transaksi kasir tidak boleh gagal)
@@ -3099,7 +3099,8 @@ async function posInsTx(row){let r=await finClient.from('transactions').insert([
  return r;}
 async function posCheckout(){
  const s=POS.s,method=$p('posMethod').value,sub=posSub(),disc=Math.min(POS.discount,sub),total=sub-disc;
- const who=String(s.cashier||'').trim();if(!who){alert('Nama kasir (User) wajib diisi di Pengaturan Kasir.');posClose();return posSettings();}
+ const who=String(($p('posCashier')||{}).value||'').trim();if(!who){alert('Kasir / Penerima wajib diisi.');const ec=$p('posCashier');if(ec)ec.focus();return;}
+ if(who!==String(s.cashier||'').trim()){s.cashier=who;try{posSave();}catch(e){}}
  const paid=method==='cash'?(parseFloat($p('posPaid').value)||0):total;
  if(paid<total){alert('Uang diterima kurang.');return;}
  const kas=method==='cash'?s.cashKas:(s.cashlessKas||s.cashKas);
